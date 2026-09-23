@@ -19,7 +19,7 @@ struct RekordApp: App {
         MenuBarExtra {
             MenuBarView(session: session, store: store, hotkeyError: hotkeyPopup.registrationError)
         } label: {
-            Image(nsImage: Self.menuBarIcon(recording: session.state != .idle))
+            Image(nsImage: Self.menuBarIcon(recording: session.isRecording))
         }
         .menuBarExtraStyle(.window)
 

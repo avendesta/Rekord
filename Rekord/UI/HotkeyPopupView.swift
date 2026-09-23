@@ -24,6 +24,9 @@ struct HotkeyPopupView: View {
                         .foregroundStyle(.orange)
                     Button("Open Privacy Settings…") { PermissionsManager.openSettings(for: .microphone) }
                 }
+            case .starting:
+                Text("Starting recording…")
+                    .font(.headline)
             case .recording(let since):
                 TimelineView(.periodic(from: since, by: 1)) { context in
                     let seconds = Int(context.date.timeIntervalSince(since))

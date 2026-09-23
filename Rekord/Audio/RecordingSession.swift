@@ -9,6 +9,8 @@ import Foundation
 final class RecordingSession: ObservableObject {
     enum State: Equatable {
         case idle
+        /// Waiting on the microphone permission prompt.
+        case starting
         case recording(since: Date)
     }
 
@@ -25,6 +27,11 @@ final class RecordingSession: ObservableObject {
     }
 
     @Published private(set) var state: State = .idle
+
+    var isRecording: Bool {
+        if case .recording = state { return true }
+        return false
+    }
     @Published private(set) var lastError: String?
     /// Per-recording toggle; the persisted default arrives with AppSettings in a later phase.
     @Published var includeMicrophone = AppSettings.includeMicrophoneDefault
@@ -58,12 +65,16 @@ final class RecordingSession: ObservableObject {
             beginRecording(includeMic: false)
             return
         }
+        state = .starting
+        lastError = nil
+        permissionIssue = nil
         AVCaptureDevice.requestAccess(for: .audio) { [weak self] granted in
             DispatchQueue.main.async {
                 guard let self else { return }
                 guard granted else {
+                    self.state = .idle
                     self.permissionIssue = .microphone
-                    self.lastError = "Microphone access denied. Grant it in System Settings > Privacy & Security > Microphone, or turn off Include microphone."
+                    self.lastError = "Microphone access denied. Grant it in System Settings > Privacy & Security > Microphone, or turn the microphone off."
                     return
                 }
                 self.beginRecording(includeMic: true)
@@ -72,7 +83,7 @@ final class RecordingSession: ObservableObject {
     }
 
     private func beginRecording(includeMic: Bool) {
-        guard state == .idle else { return }
+        guard state == .idle || state == .starting else { return }
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
@@ -83,6 +94,7 @@ final class RecordingSession: ObservableObject {
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         } catch {
             lastError = "Failed to create recording folder: \(error.localizedDescription)"
+            state = .idle
             return
         }
 
@@ -98,6 +110,7 @@ final class RecordingSession: ObservableObject {
             try? FileManager.default.removeItem(at: folder)
             if case SystemAudioRecorder.RecorderError.tapCreationFailed = error { permissionIssue = .systemAudio }
             lastError = "Failed to start recording: \(error.localizedDescription)"
+            state = .idle
             return
         }
 

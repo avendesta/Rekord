@@ -32,7 +32,7 @@ If a recording's system audio comes out silent, the second permission is missing
 
 Press the shortcut again during a recording to see the elapsed time and a **Stop** button. The menu bar icon's inner dot is red while recording.
 
-**Find your recordings** under **Recent Recordings…** in the menu. From there you can reveal a recording in Finder, move it to the Trash, or click **Combine** to mix both tracks into one file.
+**Find your recordings** under **Recent Recordings** in the menu. From there you can reveal a recording in Finder, move it to the Trash, or click **Combine** to mix both tracks into one file.
 
 Each recording is a folder in `~/Documents/Rekord/`, named by start time:
 

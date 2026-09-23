@@ -31,6 +31,23 @@ enum AudioInputDevices {
         .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
+    /// Name of the mic Rekord will use: the chosen device if it's connected, else the system default input.
+    static func currentInputName() -> String {
+        if let uid = AppSettings.inputDeviceUID, let device = all().first(where: { $0.uid == uid }) {
+            return device.name
+        }
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultInputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var id = AudioObjectID(kAudioObjectUnknown)
+        var size = UInt32(MemoryLayout<AudioObjectID>.size)
+        guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size, &id) == noErr,
+              id != kAudioObjectUnknown else { return "No input device" }
+        return stringProperty(kAudioObjectPropertyName, of: id) ?? "System default"
+    }
+
     static func deviceID(forUID uid: String) -> AudioObjectID? {
         all().first { $0.uid == uid }?.id
     }
