@@ -1,5 +1,9 @@
 # Releasing Rekord
 
+## Branches
+
+Day-to-day work happens on `dev`. When a feature is done, open a pull request from `dev` to `main`. CI builds the pull request, and merging it is what can trigger a release (below).
+
 ## Automatic releases
 
 Pushing to `main` runs `.github/workflows/release.yml`. It reads `MARKETING_VERSION` from `project.yml`; if that version has no GitHub Release yet, it builds a universal, ad-hoc signed `Rekord.app`, zips it, and publishes the release. Pushes that don't change the version do nothing.
@@ -8,7 +12,7 @@ To ship a release:
 
 1. Add a `## <version>` section to `CHANGELOG.md`. It becomes the release notes.
 2. Bump `MARKETING_VERSION` (and `CURRENT_PROJECT_VERSION`) in `project.yml`.
-3. Get the change onto `main`. The release follows within a few minutes; watch the **Actions** tab.
+3. Merge the pull request into `main`. The release follows within a few minutes; watch the **Actions** tab.
 
 `.github/workflows/ci.yml` also builds every pull request, so a merge can't break the build.
 
