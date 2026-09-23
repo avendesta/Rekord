@@ -1,0 +1,108 @@
+name: Release
+
+# Publishes a GitHub Release whenever MARKETING_VERSION in project.yml names a
+# version that has no release yet. Pushes that don't bump the version do nothing.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      should_release: ${{ steps.version.outputs.should_release }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(awk -F'"' '/MARKETING_VERSION/ {print $2; exit}' project.yml)
+          [ -n "$version" ] || { echo "Could not read MARKETING_VERSION from project.yml"; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if gh release view "v$version" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            echo "v$version is already released; nothing to do."
+          else
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+            echo "v$version has no release yet; building it."
+          fi
+
+  build:
+    needs: check
+    if: needs.check.outputs.should_release == 'true'
+    runs-on: macos-15
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate the Xcode project
+        run: xcodegen generate
+
+      # Universal (Apple silicon + Intel), ad-hoc signed. Signed and notarized
+      # builds need a paid Developer ID; see RELEASING.md.
+      - name: Build
+        run: |
+          xcodebuild -project Rekord.xcodeproj -scheme Rekord -configuration Release \
+            -derivedDataPath build/release \
+            ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= build
+
+      - name: Package and verify
+        run: |
+          app=build/release/Build/Products/Release/Rekord.app
+          built=$(plutil -extract CFBundleShortVersionString raw "$app/Contents/Info.plist")
+          [ "$built" = "$VERSION" ] || { echo "App reports $built, expected $VERSION"; exit 1; }
+          archs=$(lipo -archs "$app/Contents/MacOS/Rekord")
+          case "$archs" in *arm64*x86_64*|*x86_64*arm64*) ;; *) echo "Not universal: $archs"; exit 1 ;; esac
+          codesign --verify --deep --strict "$app"
+          ditto -c -k --keepParent "$app" "Rekord-$VERSION.zip"
+          shasum -a 256 "Rekord-$VERSION.zip" | cut -d' ' -f1 > sha256.txt
+
+      - name: Write release notes
+        run: |
+          # This version's section of CHANGELOG.md, if there is one.
+          awk -v v="$VERSION" 'index($0, "## " v) == 1 {found=1; next} /^## / {found=0} found' CHANGELOG.md > changes.md
+          {
+            if [ -s changes.md ]; then cat changes.md; else echo "Rekord $VERSION."; fi
+            cat <<EOF
+
+          ## Install
+          1. Download \`Rekord-$VERSION.zip\` below and unzip it.
+          2. Drag **Rekord** into Applications and open it.
+          3. Allow **Microphone** and **System Audio Recording** when macOS asks.
+
+          Requires **macOS 14.4 or later** (Apple silicon or Intel).
+
+          > **This build is not signed with an Apple Developer ID**, so macOS blocks it the first time. Right-click Rekord, choose **Open**, then **Open** again. Or run \`xattr -dr com.apple.quarantine /Applications/Rekord.app\`.
+
+          If recordings come out silent after updating, remove Rekord and add it again under System Settings > Privacy & Security > Microphone and Screen & System Audio Recording.
+
+          See the [README](https://github.com/$GITHUB_REPOSITORY#readme) for usage and troubleshooting.
+
+          SHA-256 of \`Rekord-$VERSION.zip\`: \`$(cat sha256.txt)\`
+          EOF
+          } | sed 's/^          //' > notes.md
+
+      - name: Create the release
+        run: |
+          gh release create "v$VERSION" "Rekord-$VERSION.zip" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Rekord $VERSION" \
+            --notes-file notes.md \
+            --latest
