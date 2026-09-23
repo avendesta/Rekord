@@ -88,7 +88,7 @@ jobs:
 
           Requires **macOS 14.4 or later** (Apple silicon or Intel).
 
-          > **This build is not signed with an Apple Developer ID**, so macOS blocks it the first time. Right-click Rekord, choose **Open**, then **Open** again. Or run \`xattr -dr com.apple.quarantine /Applications/Rekord.app\`.
+          > **This build is not signed with an Apple Developer ID**, so macOS blocks it the first time ("Apple could not verify Rekord is free of malware"). Click **Done**, then open **System Settings > Privacy & Security**, click **Open Anyway** next to "Rekord was blocked", and confirm. Or run \`xattr -dr com.apple.quarantine /Applications/Rekord.app\` in Terminal. (On macOS 14 you can right-click Rekord and choose **Open** instead.)
 
           If recordings come out silent after updating, remove Rekord and add it again under System Settings > Privacy & Security > Microphone and Screen & System Audio Recording.
 

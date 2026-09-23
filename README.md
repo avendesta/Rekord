@@ -37,7 +37,11 @@ Rekord lives in the menu bar, has no Dock icon, and needs no virtual audio drive
 
 **Requires macOS 14.4 (Sonoma) or later**, on Apple silicon or Intel.
 
-> **"Rekord can't be opened" or "unidentified developer"?** Releases that aren't signed with an Apple Developer ID are blocked by macOS the first time. Right-click Rekord in Applications, choose **Open**, then **Open** again. Or, in Terminal: `xattr -dr com.apple.quarantine /Applications/Rekord.app`.
+> **macOS says "Apple could not verify Rekord is free of malware" or "Rekord can't be opened"?** Releases aren't signed with an Apple Developer ID yet, so macOS blocks the app the first time. Click **Done** (not Move to Trash), then either:
+> - open **System Settings > Privacy & Security**, scroll to the Security section, click **Open Anyway** next to "Rekord was blocked", and confirm with your password; or
+> - run `xattr -dr com.apple.quarantine /Applications/Rekord.app` in Terminal, then open Rekord again.
+>
+> On macOS 14 you can also right-click Rekord and choose **Open**. That shortcut was removed in macOS 15.
 
 ### First launch
 
