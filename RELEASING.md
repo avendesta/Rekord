@@ -8,7 +8,7 @@ Day-to-day work happens on `dev`. When a feature is done, open a pull request fr
 
 Pushing to `main` runs `.github/workflows/release.yml`. It reads `MARKETING_VERSION` from `project.yml`; if that version has no GitHub Release yet, it builds a universal `Rekord.app`, zips it, and publishes the release. Pushes that don't change the version do nothing.
 
-If signing credentials are configured (below), the build is signed with your Developer ID, notarized by Apple and stapled, so it opens without any warning. Without them the workflow falls back to an unsigned build.
+If signing credentials are configured (below), the build is signed with your Developer ID, notarized by Apple and stapled, so it opens without any warning. With none of them set, the workflow falls back to an unsigned build. With only some set (or one empty), it fails and names the missing secrets, so a release is never published unsigned by accident.
 
 To ship a release:
 
