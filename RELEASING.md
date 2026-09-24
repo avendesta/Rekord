@@ -6,17 +6,44 @@ Day-to-day work happens on `dev`. When a feature is done, open a pull request fr
 
 ## Automatic releases
 
-Pushing to `main` runs `.github/workflows/release.yml`. It reads `MARKETING_VERSION` from `project.yml`; if that version has no GitHub Release yet, it builds a universal, ad-hoc signed `Rekord.app`, zips it, and publishes the release. Pushes that don't change the version do nothing.
+Pushing to `main` runs `.github/workflows/release.yml`. It reads `MARKETING_VERSION` from `project.yml`; if that version has no GitHub Release yet, it builds a universal `Rekord.app`, zips it, and publishes the release. Pushes that don't change the version do nothing.
+
+If signing credentials are configured (below), the build is signed with your Developer ID, notarized by Apple and stapled, so it opens without any warning. Without them the workflow falls back to an unsigned build.
 
 To ship a release:
 
 1. Add a `## <version>` section to `CHANGELOG.md`. It becomes the release notes.
 2. Bump `MARKETING_VERSION` (and `CURRENT_PROJECT_VERSION`) in `project.yml`.
-3. Merge the pull request into `main`. The release follows within a few minutes; watch the **Actions** tab.
+3. Merge the pull request into `main`. The release follows within a few minutes (the first notarization from a new Apple account can take hours); watch the **Actions** tab.
 
 `.github/workflows/ci.yml` also builds every pull request, so a merge can't break the build.
 
-These workflows produce **unsigned** builds. For a signed and notarized release, follow the manual steps below.
+### Signing credentials
+
+Add these as secrets of the **`release`** GitHub Environment (Settings > Environments > release). Only the protected `main` branch can use that environment, and pull requests and forks never see the secrets.
+
+| Secret | What it is |
+|---|---|
+| `DEVELOPER_ID_CERT_P12` | Your Developer ID Application certificate and private key, exported as a `.p12` file and base64-encoded |
+| `DEVELOPER_ID_CERT_PASSWORD` | The password you chose when exporting the `.p12` |
+| `NOTARY_APPLE_ID` | The Apple ID email used for notarization |
+| `NOTARY_PASSWORD` | An [app-specific password](https://support.apple.com/102654) for that Apple ID |
+
+1. In Keychain Access, open **My Certificates**, expand **Developer ID Application: ...** (so the private key is included), right-click it, choose **Export**, save as `DeveloperID.p12`, and set a password.
+2. In Terminal, store the secrets (each command prompts for the value, or reads it from a pipe, so nothing lands in shell history):
+
+   ```sh
+   base64 -i DeveloperID.p12 | gh secret set DEVELOPER_ID_CERT_P12 --env release --repo <owner>/Rekord
+   gh secret set DEVELOPER_ID_CERT_PASSWORD --env release --repo <owner>/Rekord
+   gh secret set NOTARY_APPLE_ID --env release --repo <owner>/Rekord
+   gh secret set NOTARY_PASSWORD --env release --repo <owner>/Rekord
+   ```
+
+3. Delete `DeveloperID.p12`, or keep it somewhere safe. It contains your private signing key.
+
+The team ID is read from the certificate, so it isn't a secret. To try the pipeline without releasing, run **Actions > Release > Run workflow** on `main`: it builds, signs and notarizes, then uploads the zip as a workflow artifact (kept 7 days) and publishes nothing.
+
+If a secret ever leaks, revoke the certificate at developer.apple.com and the app-specific password at appleid.apple.com, then create new ones.
 
 ## Releasing by hand
 
@@ -52,20 +79,32 @@ ditto -c -k --keepParent Rekord.app "Rekord-$VERSION.zip"
 
 ## 2B. Build signed and notarized
 
-Requires a **Developer ID Application** certificate in your keychain and notarization credentials stored once with `xcrun notarytool store-credentials`.
+`scripts/release-signed.sh` does the whole thing: it builds a universal `Rekord.app`, signs it with your **Developer ID Application** certificate (hardened runtime, secure timestamp), checks it, sends it to Apple for notarization, staples the ticket, and zips it as `build/signed/Rekord-<version>.zip`.
 
-Before the first signed release, add an entitlements file with `com.apple.security.device.audio-input` set to true and enable the hardened runtime. Without that entitlement a hardened app gets no microphone. Then test the signed build for both microphone and system audio.
+One-time setup:
+
+1. Create a **Developer ID Application** certificate (Xcode > Settings > Accounts > Manage Certificates > +). The script finds it in your keychain automatically.
+2. Save notarization credentials, using an [app-specific password](https://support.apple.com/102654) for your Apple ID:
+
+   ```sh
+   xcrun notarytool store-credentials <profile-name> --apple-id <you@example.com> --team-id <TEAMID>
+   ```
+
+Then, for each release:
 
 ```sh
-xcodebuild ... CODE_SIGN_IDENTITY="Developer ID Application" DEVELOPMENT_TEAM=<team id> \
-  ENABLE_HARDENED_RUNTIME=YES build
-ditto -c -k --keepParent Rekord.app Rekord-$VERSION.zip
-xcrun notarytool submit Rekord-$VERSION.zip --keychain-profile <profile> --wait
-xcrun stapler staple Rekord.app
-ditto -c -k --keepParent Rekord.app Rekord-$VERSION.zip   # re-zip the stapled app
+NOTARY_PROFILE=<profile-name> scripts/release-signed.sh
 ```
 
-(These signed-build steps haven't been run yet.)
+Notarization usually takes a few minutes, but the first submission from a new account can take hours. The script prints the submission id and polls Apple every 30 seconds, riding out network drops. If a run is interrupted, pick the same submission back up without rebuilding:
+
+```sh
+NOTARY_PROFILE=<profile-name> scripts/release-signed.sh --resume <submission-id>
+```
+
+Upload the resulting zip to the GitHub Release (step 3). `SKIP_NOTARIZE=1 scripts/release-signed.sh` builds and signs only, which is useful for testing the signing setup; that zip must not be distributed.
+
+The app needs the `com.apple.security.device.audio-input` entitlement (in `Rekord/Resources/Rekord.entitlements`) to use the microphone under the hardened runtime, and Release builds must not contain `get-task-allow`. The script checks for both.
 
 ## 3. Publish the GitHub Release
 
