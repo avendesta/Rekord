@@ -69,6 +69,12 @@ Then, for each release:
 NOTARY_PROFILE=<profile-name> scripts/release-signed.sh
 ```
 
+Notarization usually takes a few minutes, but the first submission from a new account can take hours. The script prints the submission id and polls Apple every 30 seconds, riding out network drops. If a run is interrupted, pick the same submission back up without rebuilding:
+
+```sh
+NOTARY_PROFILE=<profile-name> scripts/release-signed.sh --resume <submission-id>
+```
+
 Upload the resulting zip to the GitHub Release (step 3). `SKIP_NOTARIZE=1 scripts/release-signed.sh` builds and signs only, which is useful for testing the signing setup; that zip must not be distributed.
 
 The app needs the `com.apple.security.device.audio-input` entitlement (in `Rekord/Resources/Rekord.entitlements`) to use the microphone under the hardened runtime, and Release builds must not contain `get-task-allow`. The script checks for both.
