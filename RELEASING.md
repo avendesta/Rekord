@@ -120,9 +120,22 @@ Or on github.com: **Releases > Draft a new release**, choose or create the tag, 
 
 Push only `main` and release tags. Never push the local `dev` branch.
 
-## 4. Homebrew (optional, signed builds only)
+## 4. Homebrew
 
-Create a tap repo `homebrew-tap` with `Casks/rekord.rb` pointing at the release zip and its SHA-256 (`shasum -a 256 Rekord-$VERSION.zip`), then users install with `brew install --cask <you>/tap/rekord`.
+Rekord is available through its own tap, [`avendesta/homebrew-tap`](https://github.com/avendesta/homebrew-tap), as a cask that points at the GitHub Release zip. Users install it with `brew install --cask avendesta/tap/rekord`. (The official `homebrew-cask` list expects a project to be well known first, roughly 75 or more GitHub stars, so a tap is the way to start.)
+
+After each release, update the cask's `version` and `sha256` in the tap:
+
+```sh
+cd "$(brew --repository avendesta/tap)"
+shasum -a 256 path/to/Rekord-<version>.zip      # or download the release zip and hash it
+# edit Casks/rekord.rb: set version and sha256
+brew style --cask avendesta/tap/rekord
+brew audit --cask --strict --online avendesta/tap/rekord
+git commit -am "Update Rekord to <version>" && git push
+```
+
+`brew livecheck --cask avendesta/tap/rekord` shows whether the tap is behind the latest GitHub release. To try the cask without touching `/Applications`: `brew install --cask avendesta/tap/rekord --appdir=/tmp/apps`, then `brew uninstall --cask rekord`.
 
 ## Mac App Store
 
