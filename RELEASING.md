@@ -52,20 +52,26 @@ ditto -c -k --keepParent Rekord.app "Rekord-$VERSION.zip"
 
 ## 2B. Build signed and notarized
 
-Requires a **Developer ID Application** certificate in your keychain and notarization credentials stored once with `xcrun notarytool store-credentials`.
+`scripts/release-signed.sh` does the whole thing: it builds a universal `Rekord.app`, signs it with your **Developer ID Application** certificate (hardened runtime, secure timestamp), checks it, sends it to Apple for notarization, staples the ticket, and zips it as `build/signed/Rekord-<version>.zip`.
 
-Before the first signed release, add an entitlements file with `com.apple.security.device.audio-input` set to true and enable the hardened runtime. Without that entitlement a hardened app gets no microphone. Then test the signed build for both microphone and system audio.
+One-time setup:
+
+1. Create a **Developer ID Application** certificate (Xcode > Settings > Accounts > Manage Certificates > +). The script finds it in your keychain automatically.
+2. Save notarization credentials, using an [app-specific password](https://support.apple.com/102654) for your Apple ID:
+
+   ```sh
+   xcrun notarytool store-credentials <profile-name> --apple-id <you@example.com> --team-id <TEAMID>
+   ```
+
+Then, for each release:
 
 ```sh
-xcodebuild ... CODE_SIGN_IDENTITY="Developer ID Application" DEVELOPMENT_TEAM=<team id> \
-  ENABLE_HARDENED_RUNTIME=YES build
-ditto -c -k --keepParent Rekord.app Rekord-$VERSION.zip
-xcrun notarytool submit Rekord-$VERSION.zip --keychain-profile <profile> --wait
-xcrun stapler staple Rekord.app
-ditto -c -k --keepParent Rekord.app Rekord-$VERSION.zip   # re-zip the stapled app
+NOTARY_PROFILE=<profile-name> scripts/release-signed.sh
 ```
 
-(These signed-build steps haven't been run yet.)
+Upload the resulting zip to the GitHub Release (step 3). `SKIP_NOTARIZE=1 scripts/release-signed.sh` builds and signs only, which is useful for testing the signing setup; that zip must not be distributed.
+
+The app needs the `com.apple.security.device.audio-input` entitlement (in `Rekord/Resources/Rekord.entitlements`) to use the microphone under the hardened runtime, and Release builds must not contain `get-task-allow`. The script checks for both.
 
 ## 3. Publish the GitHub Release
 
