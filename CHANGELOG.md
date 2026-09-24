@@ -2,6 +2,11 @@
 
 Each release's notes come from its `## <version>` section here, so add one before bumping `MARKETING_VERSION`.
 
+## 0.2.2
+- First signed and notarized release. Rekord is signed with a Developer ID and notarized by Apple, so it opens without the "Apple could not verify" warning.
+- macOS may ask for the Microphone and System Audio Recording permissions once more, because the app's signature changed. If a recording comes out silent, remove Rekord from the entries in System Settings > Privacy & Security and add it again.
+- No changes to how the app works.
+
 ## 0.2.1
 - Redesigned the ⇧⌘9 shortcut popup as a fast audio-source chooser: System Audio and System Audio + Microphone rows, with `1` / `2` to start, arrow keys and Return to choose, and Esc to cancel.
 - The popup remembers your last choice, opens beside the cursor without covering it, and stays fully on screen near edges.
