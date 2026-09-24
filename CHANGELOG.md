@@ -2,6 +2,11 @@
 
 Each release's notes come from its `## <version>` section here, so add one before bumping `MARKETING_VERSION`.
 
+## 1.0.0
+- First stable release. Rekord is now also prepared for the Mac App Store: the output folder you choose in Settings is remembered securely, which lets the sandboxed App Store build save recordings where you want them.
+- Added a privacy policy (`PRIVACY.md`): Rekord collects nothing and never sends your recordings anywhere.
+- Recording, Combine, the shortcut and everything else work as before.
+
 ## 0.2.2
 - First signed and notarized release. Rekord is signed with a Developer ID and notarized by Apple, so it opens without the "Apple could not verify" warning.
 - macOS may ask for the Microphone and System Audio Recording permissions once more, because the app's signature changed. If a recording comes out silent, remove Rekord from the entries in System Settings > Privacy & Security and add it again.
