@@ -61,6 +61,8 @@ jobs:
     timeout-minutes: 300
     # Holds the signing secrets; only protected branches (main) may use this environment.
     environment: release
+    outputs:
+      signed: ${{ steps.signing.outputs.enabled }}
     env:
       VERSION: ${{ needs.check.outputs.version }}
       GH_TOKEN: ${{ github.token }}
@@ -226,11 +228,12 @@ jobs:
           [ -n "${KEYCHAIN:-}" ] && security delete-keychain "$KEYCHAIN" || true
 
   # Runs only after the release is published, so a tap problem can never affect a release.
+  # Unsigned fallback builds are never sent to Homebrew users.
   update-tap:
     needs: [check, build]
     if: >-
-      always() &&
-      ((github.event_name == 'push' && needs.build.result == 'success') ||
+      !cancelled() &&
+      ((github.event_name == 'push' && needs.build.result == 'success' && needs.build.outputs.signed == 'true') ||
        (github.event_name == 'workflow_dispatch' && inputs.update_tap_only))
     runs-on: ubuntu-24.04
     environment: release
@@ -244,6 +247,7 @@ jobs:
       CHECK_VERSION: ${{ needs.check.outputs.version }}
     steps:
       - name: Update the Homebrew cask
+        shell: bash
         run: |
           if [ -z "$TAP_TOKEN" ]; then
             echo "::notice::HOMEBREW_TAP_TOKEN is not set in the release environment; skipping the Homebrew tap update."
@@ -254,11 +258,13 @@ jobs:
           else
             VERSION=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName | sed 's/^v//')
           fi
+          [ -n "$VERSION" ] || { echo "::error::Could not determine the release version"; exit 1; }
           echo "Syncing the tap with Rekord $VERSION"
 
           # Hash the file people will actually download.
           gh release download "v$VERSION" --repo "$GITHUB_REPOSITORY" --pattern "Rekord-$VERSION.zip"
           SHA=$(sha256sum "Rekord-$VERSION.zip" | cut -d' ' -f1)
+          [ -n "$SHA" ] || { echo "::error::Could not hash Rekord-$VERSION.zip"; exit 1; }
 
           git clone --quiet "https://x-access-token:${TAP_TOKEN}@github.com/${TAP_REPO}.git" tap
           cd tap
@@ -271,7 +277,7 @@ jobs:
           text = re.sub(r'^(  sha256 ")[^"]*(")', lambda m: m.group(1) + sha + m.group(2), text, count=1, flags=re.M)
           open(path, "w").write(text)
           PY
-          grep -q "^  version \"$VERSION\"" Casks/rekord.rb && grep -q "^  sha256 \"$SHA\"" Casks/rekord.rb \
+          grep -qxF "  version \"$VERSION\"" Casks/rekord.rb && grep -qxF "  sha256 \"$SHA\"" Casks/rekord.rb \
             || { echo "::error::Could not update version and sha256 in the cask"; exit 1; }
 
           if git diff --quiet; then

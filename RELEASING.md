@@ -126,7 +126,9 @@ Rekord is available through its own tap, [`avendesta/homebrew-tap`](https://gith
 
 ### Automatic updates
 
-After a release is published, the `update-tap` job in `.github/workflows/release.yml` downloads the release zip, hashes it, sets `version` and `sha256` in the tap's `Casks/rekord.rb`, and pushes the commit. It runs as its own job after the release, so a tap problem can never affect a release. Without the `HOMEBREW_TAP_TOKEN` secret it skips itself with a note.
+After a release is published, the `update-tap` job in `.github/workflows/release.yml` downloads the release zip, hashes it, sets `version` and `sha256` in the tap's `Casks/rekord.rb`, and pushes the commit. It runs as its own job after the release, so a tap problem can never affect a release. Without the `HOMEBREW_TAP_TOKEN` secret it skips itself with a note. It also skips unsigned builds, so Homebrew users only ever get notarized releases.
+
+The job only runs when the workflow publishes the release. After a release made by hand (section 3), or any release the job skipped or failed on, sync the tap yourself: **Actions > Release > Run workflow**, tick **update_tap_only**, and run it on `main`. A later push will not catch up on its own, because the release already exists.
 
 **One-time setup:**
 
@@ -144,7 +146,7 @@ After a release is published, the `update-tap` job in `.github/workflows/release
 
 3. Test it without releasing anything: **Actions > Release > Run workflow**, tick **update_tap_only**, and run it on `main`. It syncs the tap with the latest release; if the tap is already current it logs "nothing to do".
 
-If the token expires or is revoked, the `update-tap` job fails (the release itself is unaffected). Make a new token and run the `gh secret set` command again.
+If the token expires or is revoked, the `update-tap` job fails (the release itself is unaffected). Make a new token, run the `gh secret set` command again, then run Release with **update_tap_only** to sync the release it missed. (Re-running the failed job also works; re-running the whole workflow does not, because `check` now sees the release and skips the build.)
 
 ### Updating by hand
 
