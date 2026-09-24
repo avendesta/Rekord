@@ -124,7 +124,29 @@ Push only `main` and release tags. Never push the local `dev` branch.
 
 Rekord is available through its own tap, [`avendesta/homebrew-tap`](https://github.com/avendesta/homebrew-tap), as a cask that points at the GitHub Release zip. Users install it with `brew install --cask avendesta/tap/rekord`. (The official `homebrew-cask` list expects a project to be well known first, roughly 75 or more GitHub stars, so a tap is the way to start.)
 
-After each release, update the cask's `version` and `sha256` in the tap:
+### Automatic updates
+
+After a release is published, the `update-tap` job in `.github/workflows/release.yml` downloads the release zip, hashes it, sets `version` and `sha256` in the tap's `Casks/rekord.rb`, and pushes the commit. It runs as its own job after the release, so a tap problem can never affect a release. Without the `HOMEBREW_TAP_TOKEN` secret it skips itself with a note.
+
+**One-time setup:**
+
+1. Create a fine-grained personal access token at <https://github.com/settings/personal-access-tokens/new>:
+   - **Token name:** `Rekord release: update Homebrew tap`
+   - **Expiration:** up to one year (you will need to make a new one before it expires)
+   - **Resource owner:** your account
+   - **Repository access:** *Only select repositories*, then choose **`homebrew-tap`** and nothing else
+   - **Repository permissions:** **Contents: Read and write** (Metadata: Read-only is added automatically); leave everything else at *No access*
+2. Copy the token (GitHub shows it once) and store it as a secret of the `release` environment:
+
+   ```sh
+   gh secret set HOMEBREW_TAP_TOKEN --env release --repo <owner>/Rekord
+   ```
+
+3. Test it without releasing anything: **Actions > Release > Run workflow**, tick **update_tap_only**, and run it on `main`. It syncs the tap with the latest release; if the tap is already current it logs "nothing to do".
+
+If the token expires or is revoked, the `update-tap` job fails (the release itself is unaffected). Make a new token and run the `gh secret set` command again.
+
+### Updating by hand
 
 ```sh
 cd "$(brew --repository avendesta/tap)"
