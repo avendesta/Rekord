@@ -124,7 +124,14 @@ open Rekord.xcodeproj                      # or: xcodebuild -project Rekord.xcod
 
 `Local.xcconfig` is gitignored, so your Team ID stays out of the repo. Run the app from Xcode or from the built product. Debug builds print `[Rekord] ...` logs to the console.
 
-Core Audio taps need real hardware and real permissions, so there are no automated tests for capture; test by recording.
+### Tests
+
+```sh
+xcodebuild test -project Rekord.xcodeproj -scheme Rekord -destination 'platform=macOS' \
+  CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM=
+```
+
+The unit tests in `RekordTests/` cover the mixdown (`CombineEngine`), `session.json`, shortcuts, the output folder setting and the recordings list, and CI runs them on every pull request. Because they run inside the app, they read and restore the app's real settings. Core Audio taps need real hardware and real permissions, so capture has no automated tests; test that by recording.
 
 ### How it works
 
@@ -143,6 +150,7 @@ Rekord/
   UI/        MenuBarView, RecordingsWindowView, RecordingRowView, SettingsView,
              HotkeyManager, HotkeyPopupView
   Resources/ Info.plist, Assets.xcassets
+RekordTests/ unit tests
 project.yml  XcodeGen project definition
 ```
 
