@@ -33,21 +33,23 @@ Rekord lives in the menu bar, has no Dock icon, and needs no virtual audio drive
 
 1. Download the latest `Rekord-<version>.zip` from the [Releases page](../../releases/latest).
 2. Unzip it and drag **Rekord** into your **Applications** folder.
-3. Open Rekord. macOS will probably show a warning: **Apple could not verify “Rekord” is free of malware…** This is expected: releases aren't signed with an Apple Developer ID yet. Click **Done** (not *Move to Trash*).
-4. Open **System Settings > Privacy & Security** and scroll down to the **Security** section. Click **Open Anyway** next to "Rekord was blocked", confirm with your password or Touch ID, then click **Open**.
-5. A record icon appears in the menu bar.
+3. Open Rekord. A record icon appears in the menu bar.
 
-You only need steps 3 and 4 once for each version you download.
-
-**Prefer Terminal?** Instead of steps 3 and 4, run this and then open Rekord:
-
-```sh
-xattr -dr com.apple.quarantine /Applications/Rekord.app
-```
-
-On macOS 14 you can also right-click Rekord and choose **Open**. That shortcut was removed in macOS 15.
+Rekord is signed with a Developer ID and notarized by Apple, so it opens without any security warning.
 
 **Requires macOS 14.4 (Sonoma) or later**, on Apple silicon or Intel.
+
+<details>
+<summary>Using an older release (0.2.1 or earlier)?</summary>
+
+Those releases were not signed, so macOS shows **"Apple could not verify “Rekord” is free of malware…"** the first time. The easiest fix is to install the latest release. To keep the old one:
+
+1. Click **Done** (not *Move to Trash*).
+2. Open **System Settings > Privacy & Security** and scroll down to the **Security** section. Click **Open Anyway** next to "Rekord was blocked", confirm with your password or Touch ID, then click **Open**.
+
+Or, in Terminal, run `xattr -dr com.apple.quarantine /Applications/Rekord.app` and open Rekord again. On macOS 14 you can also right-click Rekord and choose **Open**.
+
+</details>
 
 ### First launch
 
@@ -138,7 +140,7 @@ project.yml  XcodeGen project definition
 
 ### Constraints
 
-- Rekord is **unsandboxed**: the process tap API isn't documented as sandbox-compatible, so it can't be on the Mac App Store. Distribute it Developer ID signed and notarized, or unsigned as described in [RELEASING.md](RELEASING.md).
+- Rekord is **unsandboxed**: the process tap API isn't documented as sandbox-compatible, so it can't be on the Mac App Store. Releases are Developer ID signed and notarized; see [RELEASING.md](RELEASING.md).
 - The tap captures the whole system output, not a single app.
 
 ### Releasing
