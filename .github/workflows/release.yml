@@ -69,11 +69,21 @@ jobs:
           NOTARY_APPLE_ID: ${{ secrets.NOTARY_APPLE_ID }}
           NOTARY_PASSWORD: ${{ secrets.NOTARY_PASSWORD }}
         run: |
-          if [ -n "$CERT" ] && [ -n "$CERT_PASSWORD" ] && [ -n "$NOTARY_APPLE_ID" ] && [ -n "$NOTARY_PASSWORD" ]; then
+          # No credentials at all: unsigned fallback. All four: signed. Anything in between is a
+          # misconfiguration, and shipping an unsigned build by accident would be worse than failing.
+          missing=""
+          [ -n "$CERT" ] || missing="$missing DEVELOPER_ID_CERT_P12"
+          [ -n "$CERT_PASSWORD" ] || missing="$missing DEVELOPER_ID_CERT_PASSWORD"
+          [ -n "$NOTARY_APPLE_ID" ] || missing="$missing NOTARY_APPLE_ID"
+          [ -n "$NOTARY_PASSWORD" ] || missing="$missing NOTARY_PASSWORD"
+          if [ -z "$missing" ]; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
-          else
+          elif [ "$(echo $missing | wc -w)" -eq 4 ]; then
             echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Signing credentials are missing from the release environment; building an unsigned release."
+            echo "::warning::No signing credentials in the release environment; building an unsigned release."
+          else
+            echo "::error::Signing credentials are incomplete. Missing or empty secrets in the release environment:$missing"
+            exit 1
           fi
 
       # ---- Signed and notarized build -------------------------------------------------------
