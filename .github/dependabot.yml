@@ -1,0 +1,7 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions" # the only dependencies: actions used in .github/workflows
+    directory: "/"
+    target-branch: "dev"
+    schedule:
+      interval: "weekly"
