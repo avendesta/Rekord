@@ -123,3 +123,30 @@ Push only `main` and release tags. Never push the local `dev` branch.
 ## 4. Homebrew (optional, signed builds only)
 
 Create a tap repo `homebrew-tap` with `Casks/rekord.rb` pointing at the release zip and its SHA-256 (`shasum -a 256 Rekord-$VERSION.zip`), then users install with `brew install --cask <you>/tap/rekord`.
+
+## Mac App Store
+
+The App Store build is the same app with the **App Sandbox** turned on (`Rekord/Resources/RekordAppStore.entitlements`). Everything works inside the sandbox; the one difference is the output folder. A sandboxed app can only write to its own container unless the user picks a folder, so Settings remembers the chosen folder with a security-scoped bookmark. The direct-download build stays unsandboxed and keeps its default of `~/Documents/Rekord`. The direct build and the App Store build both use the bundle ID `com.avendesta.rekord`.
+
+### One-time setup (in Apple's portals)
+
+1. **App ID.** developer.apple.com > Certificates, Identifiers & Profiles > Identifiers: make sure `com.avendesta.rekord` exists for macOS. Automatic signing creates it for you the first time you export.
+2. **App record.** appstoreconnect.apple.com > Apps > + > New App: platform macOS, name **Rekord** (App Store names are unique, so check it is free), primary language, bundle ID `com.avendesta.rekord`, and a SKU such as `rekord-macos`.
+3. **Xcode account.** Xcode > Settings > Accounts: sign in with the Apple ID that owns the developer account. The export step uses it to create the *Apple Distribution* and *Mac Installer Distribution* certificates and the provisioning profile for you (this needs the Account Holder or Admin role).
+4. **Store page** (App Store Connect > the app > App Information / the version page):
+   - Category: Productivity. Age rating questionnaire. Price and availability.
+   - Description, keywords, promotional text, and **What's New**.
+   - **Support URL:** the GitHub repository. **Privacy Policy URL:** `https://github.com/<owner>/Rekord/blob/main/PRIVACY.md`.
+   - **Screenshots:** 16:10, one of 1280x800, 1440x900, 2560x1600 or 2880x1800 (1 to 10 of them).
+   - **App Privacy:** "Data Not Collected" (Rekord collects nothing).
+   - **App Review Information:** explain that Rekord records system audio and the microphone on the user's request, needs the Microphone and System Audio Recording permissions, shows a red menu bar indicator while recording, and has no login. Suggested steps: open the menu bar icon, press Start Recording, play any audio, press Stop, then open Recent Recordings.
+
+### Build and upload
+
+```sh
+ARCHIVE_ONLY=1 scripts/build-appstore.sh   # dry run: archive and check the sandbox and privacy manifest
+scripts/build-appstore.sh                  # archive and export a signed .pkg to build/appstore/export/
+UPLOAD=1 scripts/build-appstore.sh         # archive and upload straight to App Store Connect
+```
+
+Every upload needs a build number (`CURRENT_PROJECT_VERSION` in `project.yml`) higher than the last upload. After the upload finishes processing (5 to 30 minutes), the build appears in App Store Connect > TestFlight. Install it from **TestFlight** on your Mac to try it, then attach it to the version on the store page and **Submit for Review**.
