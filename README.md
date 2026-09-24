@@ -39,6 +39,14 @@ Rekord is signed with a Developer ID and notarized by Apple, so it opens without
 
 **Requires macOS 14.4 (Sonoma) or later**, on Apple silicon or Intel.
 
+**With Homebrew:**
+
+```sh
+brew install --cask avendesta/tap/rekord
+```
+
+Update later with `brew upgrade --cask rekord`.
+
 <details>
 <summary>Using an older release (0.2.1 or earlier)?</summary>
 
