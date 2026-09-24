@@ -27,6 +27,10 @@
 	<key>NSAudioCaptureUsageDescription</key>
 	<string>Rekord needs system audio access to record meeting audio from apps like Zoom and Webex.</string>
 	<key>NSHumanReadableCopyright</key>
-	<string></string>
+	<string>Copyright © 2026 avendesta. MIT License.</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.productivity</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>

@@ -80,7 +80,10 @@ struct SettingsView: View {
                 }
                 HStack {
                     Button("Choose Folder…", action: chooseFolder)
-                    Button("Reset to Default") { outputFolderPath = "" }
+                    Button("Reset to Default") {
+                        AppSettings.setOutputFolder(nil)
+                        outputFolderPath = ""
+                    }
                         .disabled(outputFolderPath.isEmpty)
                 }
                 Toggle("Include microphone by default", isOn: $includeMicrophoneDefault)
@@ -171,6 +174,7 @@ struct SettingsView: View {
         panel.directoryURL = AppSettings.outputFolder
         NSApp.activate(ignoringOtherApps: true)
         if panel.runModal() == .OK, let url = panel.url {
+            AppSettings.setOutputFolder(url)
             outputFolderPath = url.path
         }
     }

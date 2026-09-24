@@ -22,6 +22,7 @@ struct Hotkey: Codable, Equatable {
 /// User preferences, backed by UserDefaults. Views bind to the same keys with @AppStorage.
 enum AppSettings {
     static let outputFolderKey = "outputFolderPath"
+    static let outputFolderBookmarkKey = "outputFolderBookmark"
     static let includeMicrophoneKey = "includeMicrophoneDefault"
     static let hotkeyKey = "hotkey"
     static let inputDeviceUIDKey = "inputDeviceUID"
@@ -31,11 +32,54 @@ enum AppSettings {
         .homeDirectoryForCurrentUser
         .appendingPathComponent("Documents/Rekord", isDirectory: true)
 
+    /// Where recordings go. A folder chosen in Settings is remembered as a security-scoped bookmark,
+    /// which is what lets the sandboxed Mac App Store build keep writing outside its container; the
+    /// direct-download build also accepts a plain stored path from older versions.
     static var outputFolder: URL {
+        if let data = UserDefaults.standard.data(forKey: outputFolderBookmarkKey), let url = resolve(bookmark: data) {
+            return url
+        }
         guard let path = UserDefaults.standard.string(forKey: outputFolderKey), !path.isEmpty else {
             return defaultOutputFolder
         }
         return URL(fileURLWithPath: path, isDirectory: true)
+    }
+
+    /// Remembers a folder the user picked in an open panel (or forgets it with nil).
+    static func setOutputFolder(_ url: URL?) {
+        stopAccessingOutputFolder()
+        guard let url else {
+            UserDefaults.standard.removeObject(forKey: outputFolderBookmarkKey)
+            UserDefaults.standard.removeObject(forKey: outputFolderKey)
+            return
+        }
+        UserDefaults.standard.set(url.path, forKey: outputFolderKey)
+        if let data = try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil) {
+            UserDefaults.standard.set(data, forKey: outputFolderBookmarkKey)
+        }
+    }
+
+    // The folder's security scope stays open for as long as the app runs.
+    private static var accessedFolder: URL?
+
+    private static func stopAccessingOutputFolder() {
+        accessedFolder?.stopAccessingSecurityScopedResource()
+        accessedFolder = nil
+    }
+
+    private static func resolve(bookmark data: Data) -> URL? {
+        var isStale = false
+        guard let url = try? URL(resolvingBookmarkData: data, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &isStale) else {
+            return nil
+        }
+        if accessedFolder?.path != url.path {
+            stopAccessingOutputFolder()
+            if url.startAccessingSecurityScopedResource() { accessedFolder = url }
+        }
+        if isStale, let fresh = try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil) {
+            UserDefaults.standard.set(fresh, forKey: outputFolderBookmarkKey)
+        }
+        return url
     }
 
     static var includeMicrophoneDefault: Bool {
