@@ -35,6 +35,64 @@ final class TranscriptTests: XCTestCase {
         XCTAssertEqual(Transcript.render(system: [], mic: []), "(No speech detected)\n")
     }
 
+    // MARK: Echo removal
+
+    private func seg(_ start: Double, _ end: Double, _ text: String) -> TranscriptSegment { .init(start: start, text: text, end: end) }
+
+    private func kept(mic: [TranscriptSegment], system: [TranscriptSegment], offset: Double = 0) -> [String] {
+        Transcript.withoutEcho(mic: mic, system: system, micOffset: offset).map(\.text)
+    }
+
+    func testAMicLineThatRepeatsTheMeetingIsDropped() {
+        let system = [seg(6.5, 9.5, "Now it's time to get the rooks into play.")]
+        XCTAssertEqual(kept(mic: [seg(7.3, 9.4, "Now it's time to get the rooks into play.")], system: system), [])
+    }
+
+    func testSmallWordingDifferencesStillCountAsAnEcho() {
+        let system = [seg(23.3, 26.3, "Uh, one is just to trade and simplify."),
+                      seg(9.0, 14.9, "The evaluation API is the piece that you'll primarily be interacting with.")]
+        XCTAssertEqual(kept(mic: [seg(23.2, 26.0, "One is just to trade and simplify."),
+                                  seg(9.0, 14.8, "The evaluation API is the piece that you're primarily interacting with.")], system: system), [])
+    }
+
+    func testOneMeetingSentenceHeardAsSeveralMicSegmentsIsDropped() {
+        let system = [seg(18.4, 23.1, "First, you need to include the SDK in your code, then set the provider you wish to use."),
+                      seg(23.1, 24.5, "If you don't yet know about providers.")]
+        let mic = [seg(18.3, 20.9, "First, you need to include the SDK in your code."),
+                   seg(20.9, 24.4, "set the provider you wish to use if you don't yet know about providers.")]
+        XCTAssertEqual(kept(mic: mic, system: system), [])
+    }
+
+    func testWhatTheUserSaidIsKeptEvenWhileOthersTalk() {
+        let system = [seg(23.1, 24.5, "If you don't yet know about providers."), seg(25.9, 28.3, "We have another video on that topic.")]
+        XCTAssertEqual(kept(mic: [seg(24.4, 26.1, "Are you okay?"), seg(26.1, 28.1, "We have another video on that topic.")], system: system),
+                       ["Are you okay?"])
+    }
+
+    func testTheSameWordsAtAnotherTimeAreNotAnEcho() {
+        let system = [seg(5, 8, "Let's move on to the budget.")]
+        XCTAssertEqual(kept(mic: [seg(60, 63, "Let's move on to the budget.")], system: system), ["Let's move on to the budget."])
+    }
+
+    func testAShortReplyIsOnlyDroppedWhenItMatchesExactly() {
+        let system = [seg(10, 14, "Yeah, I think that plan works for everyone."), seg(20, 21, "Okay.")]
+        XCTAssertEqual(kept(mic: [seg(12, 12.5, "Yeah."), seg(20.1, 21, "Okay.")], system: system), ["Yeah."])
+    }
+
+    func testTheMicOffsetLinesTheTracksUpBeforeComparing() {
+        // The mic started 30 s late, so its 5 s is the meeting's 35 s.
+        let system = [seg(35, 38, "Shall we start with the roadmap today?")]
+        let mic = [seg(5, 8, "Shall we start with the roadmap today?")]
+        XCTAssertEqual(kept(mic: mic, system: system, offset: 30), [])
+        XCTAssertEqual(kept(mic: mic, system: system, offset: 0), ["Shall we start with the roadmap today?"])
+    }
+
+    func testRenderLeavesEchoesOutButKeepsTheLabels() {
+        let text = Transcript.render(system: [seg(3, 6, "Shall we start with the roadmap?")],
+                                     mic: [seg(3.1, 6, "Shall we start with the roadmap?"), seg(7, 9, "Yes, I have two updates.")])
+        XCTAssertEqual(text, "[00:03] Others: Shall we start with the roadmap?\n[00:07] Me: Yes, I have two updates.\n")
+    }
+
     func testTimestampsCanBeLeftOut() {
         let text = Transcript.render(system: [seg(3, "A")], mic: [seg(7, "B")], timestamps: false)
         XCTAssertEqual(text, "Others: A\nMe: B\n")
