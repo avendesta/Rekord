@@ -31,15 +31,23 @@ Rekord lives in the menu bar, has no Dock icon, and needs no virtual audio drive
 
 ## Install
 
+**Requires macOS 14.4 (Sonoma) or later**, on Apple silicon or Intel. Pick one:
+
+**Mac App Store** (updates automatically):
+
+[Rekord Audio Recorder on the Mac App Store](https://apps.apple.com/us/app/rekord-audio-recorder/id6815646602)
+
+The App Store version runs in Apple's App Sandbox, so until you choose a folder in Settings it saves recordings inside its own container (`~/Library/Containers/com.avendesta.rekord/Data/Documents/Rekord`) rather than `~/Documents/Rekord`.
+
+**Direct download:**
+
 1. Download the latest `Rekord-<version>.zip` from the [Releases page](../../releases/latest).
 2. Unzip it and drag **Rekord** into your **Applications** folder.
 3. Open Rekord. A record icon appears in the menu bar.
 
 Rekord is signed with a Developer ID and notarized by Apple, so it opens without any security warning.
 
-**Requires macOS 14.4 (Sonoma) or later**, on Apple silicon or Intel.
-
-**With Homebrew:**
+**Homebrew:**
 
 ```sh
 brew install --cask avendesta/tap/rekord
@@ -81,7 +89,7 @@ Press the shortcut again during a recording to see the elapsed time and a **Stop
 
 **Find your recordings** under **Recent Recordings** in the menu. From there you can reveal a recording in Finder, move it to the Trash, or click **Combine** to mix both tracks into one file.
 
-Each recording is a folder in `~/Documents/Rekord/`, named by start time:
+Each recording is a folder in `~/Documents/Rekord/` (or the folder you chose in Settings), named by start time:
 
 ```
 2026-09-23_14-30-00/
@@ -156,7 +164,7 @@ project.yml  XcodeGen project definition
 
 ### Constraints
 
-- Rekord is **unsandboxed**: the process tap API isn't documented as sandbox-compatible, so it can't be on the Mac App Store. Releases are Developer ID signed and notarized; see [RELEASING.md](RELEASING.md).
+- There are two builds from the same code: the direct download and Homebrew build is unsandboxed, Developer ID signed and notarized; the Mac App Store build is sandboxed and keeps access to your chosen folder with a security-scoped bookmark. See [RELEASING.md](RELEASING.md).
 - The tap captures the whole system output, not a single app.
 
 ### Releasing
