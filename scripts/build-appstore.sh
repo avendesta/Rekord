@@ -19,7 +19,9 @@ APP="$ARCHIVE/Products/Applications/Rekord.app"
 
 echo "==> Rekord $VERSION (build $BUILD), team $TEAM_ID"
 xcodegen generate
-rm -rf build/appstore
+# Only the build products: the store listing and screenshots also live in build/appstore.
+rm -rf "$ARCHIVE" build/appstore/export
+mkdir -p build/appstore
 xcodebuild archive -project Rekord.xcodeproj -scheme Rekord -configuration Release \
   -archivePath "$ARCHIVE" \
   CODE_SIGN_ENTITLEMENTS=Rekord/Resources/RekordAppStore.entitlements | grep -E "ARCHIVE|error:" || true
