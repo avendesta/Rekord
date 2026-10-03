@@ -4,6 +4,7 @@ Each release's notes come from its `## <version>` section here, so add one befor
 
 ## 1.2.0
 - **Playback.** Each recording in the Recordings window has a play button. The recording you're listening to shows the elapsed time and a scrubber to jump around; press Space to play or pause the selected recording.
+- **Quicker delete.** The trash icon now moves a recording to the Trash straight away and shows an Undo message for a few seconds (⌘Z works too). Deleting several at once still asks first.
 - Playback is off while Rekord is recording, so it can't end up in the new recording, and it stops when you close the window.
 
 ## 1.1.0

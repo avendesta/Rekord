@@ -16,7 +16,7 @@ struct RecordingRowView: View {
     var onTranscribe: () -> Void = {}
     var onOpenTranscript: () -> Void = {}
     let onReveal: () -> Void
-    /// Asks for confirmation itself, and covers the whole selection when this row is part of one.
+    /// Covers the whole selection when this row is part of one; undoable, so a single row isn't confirmed.
     let onDelete: () -> Void
 
     enum PlaybackState: Equatable {
@@ -64,7 +64,8 @@ struct RecordingRowView: View {
                 Button(action: onReveal) { Label("Reveal in Finder", systemImage: "folder") }
                     .tooltip("Reveal in Finder")
                 Button(action: onDelete) { Label("Move to Trash", systemImage: "trash") }
-                    .tooltip("Move to Trash…")
+                    .tooltip("Move to Trash")
+                    .padding(.leading, 6)  // set apart from the everyday controls
             }
             .labelStyle(.iconOnly)
             .buttonStyle(.borderless)
@@ -88,7 +89,7 @@ struct RecordingRowView: View {
             }
             Button("Reveal in Finder", action: onReveal)
             Divider()
-            Button("Move to Trash…", role: .destructive, action: onDelete)
+            Button("Move to Trash", role: .destructive, action: onDelete)
         }
     }
 

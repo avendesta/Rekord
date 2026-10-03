@@ -39,8 +39,7 @@ final class RecordingSectionTests: XCTestCase {
     }
 
     func testTrashPromptsNameWhatWillGo() {
-        XCTAssertEqual(RecordingsWindowView.trashPrompt(count: 1, single: "Oct 3").title, "Move This Recording to Trash?")
-        let several = RecordingsWindowView.trashPrompt(count: 3, single: "")
+        let several = RecordingsWindowView.trashPrompt(count: 3)
         XCTAssertEqual(several.title, "Move 3 Recordings to Trash?")
         XCTAssertTrue(several.text.contains("transcript"))
     }
@@ -237,6 +236,35 @@ final class StorageTests: XCTestCase {
         XCTAssertNil(player.activeID)
         XCTAssertFalse(player.isPlaying)
         XCTAssertEqual(player.clock.time, 0)
+    }
+
+    func testTrashedRecordingCanBePutBack() throws {
+        try writeSession("2026-09-20_10-00-00", start: "2026-09-20T10:00:00Z", in: root)
+        try Data("hello".utf8).write(to: root.appendingPathComponent("2026-09-20_10-00-00/transcript.txt"))
+        UserDefaults.standard.set(root.path, forKey: AppSettings.outputFolderKey)
+        let store = RecordingStore()
+        store.reload()
+
+        let trashed = store.moveToTrash(store.recordings)
+        XCTAssertEqual(trashed.count, 1)
+        XCTAssertTrue(store.recordings.isEmpty)
+
+        XCTAssertTrue(store.restore(trashed))
+        XCTAssertEqual(store.recordings.map { $0.folder.lastPathComponent }, ["2026-09-20_10-00-00"])
+        XCTAssertTrue(store.recordings[0].hasTranscript)  // the transcript travels with the recording
+
+        XCTAssertFalse(store.restore(trashed))  // nothing left in the Trash to restore: reported, not faked
+    }
+
+    func testTrashingAMissingRecordingReportsNothing() throws {
+        try writeSession("gone", start: "2026-09-20T10:00:00Z", in: root)
+        UserDefaults.standard.set(root.path, forKey: AppSettings.outputFolderKey)
+        let store = RecordingStore()
+        store.reload()
+        let recording = try XCTUnwrap(store.recordings.first)
+        try FileManager.default.removeItem(at: recording.folder)
+
+        XCTAssertTrue(store.moveToTrash([recording]).isEmpty)
     }
 
     func testStoreIsEmptyWhenTheFolderDoesNotExist() {

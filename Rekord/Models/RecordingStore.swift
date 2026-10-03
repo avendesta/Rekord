@@ -119,16 +119,43 @@ final class RecordingStore: ObservableObject {
         }
     }
 
-    func moveToTrash(_ recordings: [Recording]) {
-        var failed = false
+    /// Where a trashed recording came from and where the Trash put it, which is what Undo needs.
+    struct Trashed: Equatable {
+        let original: URL
+        let inTrash: URL
+    }
+
+    /// Moves recordings (folder, audio and transcript together) to the Trash and returns the ones
+    /// that actually went; a folder that is already gone is not reported as trashed.
+    @discardableResult
+    func moveToTrash(_ recordings: [Recording]) -> [Trashed] {
+        var trashed: [Trashed] = []
         for recording in recordings {
+            var inTrash: NSURL?
             do {
-                try FileManager.default.trashItem(at: recording.folder, resultingItemURL: nil)
+                try FileManager.default.trashItem(at: recording.folder, resultingItemURL: &inTrash)
+                if let inTrash = inTrash as URL? { trashed.append(Trashed(original: recording.folder, inTrash: inTrash)) }
             } catch {
-                failed = true
+                NSSound.beep()
             }
         }
-        if failed { NSSound.beep() }
         reload()
+        return trashed
+    }
+
+    /// Puts trashed recordings back where they were. Returns false if any could not be restored
+    /// (the Trash was emptied, or the original place is taken).
+    @discardableResult
+    func restore(_ trashed: [Trashed]) -> Bool {
+        var allRestored = true
+        for item in trashed {
+            do {
+                try FileManager.default.moveItem(at: item.inTrash, to: item.original)
+            } catch {
+                allRestored = false
+            }
+        }
+        reload()
+        return allRestored
     }
 }
