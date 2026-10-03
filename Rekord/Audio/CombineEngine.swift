@@ -1,6 +1,6 @@
 import AVFoundation
 
-/// Offline mixdown of `system.caf` + `mic.caf` into `combined.caf`, aligning the
+/// Offline mixdown of the system and mic tracks into `combined.caf`, aligning the
 /// tracks with the first-buffer offset recorded in `session.json`.
 enum CombineEngine {
     enum CombineError: Error, LocalizedError {
@@ -18,8 +18,11 @@ enum CombineEngine {
     static func combine(folder: URL, metadata: RecordingSession.Metadata) throws -> URL {
         guard metadata.includeMicrophone else { throw CombineError.missingTrack }
 
-        let systemFile = try AVAudioFile(forReading: folder.appendingPathComponent("system.caf"))
-        let micFile = try AVAudioFile(forReading: folder.appendingPathComponent("mic.caf"))
+        guard let systemURL = Track.system.url(in: folder), let micURL = Track.mic.url(in: folder) else {
+            throw CombineError.missingTrack
+        }
+        let systemFile = try AVAudioFile(forReading: systemURL)
+        let micFile = try AVAudioFile(forReading: micURL)
         let outputURL = folder.appendingPathComponent("combined.caf")
         // Rendered under a temporary name, so a mix cut short (quit, error) never passes for a finished one.
         let tempURL = folder.appendingPathComponent("combined.tmp.caf")

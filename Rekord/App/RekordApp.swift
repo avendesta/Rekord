@@ -32,7 +32,7 @@ struct RekordApp: App {
         .defaultSize(width: 480, height: 340)
 
         Window("Rekord Settings", id: "settings") {
-            SettingsView(hotkey: hotkeyPopup)
+            SettingsView(hotkey: hotkeyPopup, store: store)
         }
         .windowResizability(.contentSize)
     }

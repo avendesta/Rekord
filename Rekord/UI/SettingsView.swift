@@ -9,6 +9,8 @@ struct SettingsView: View {
     @AppStorage(AppSettings.includeMicrophoneKey) private var includeMicrophoneDefault = true
 
     @ObservedObject var hotkey: HotkeyPopupController
+    @ObservedObject var store: RecordingStore
+    @AppStorage(AppSettings.compressKey) private var compressRecordings = true
     @AppStorage(AppSettings.inputDeviceUIDKey) private var inputDeviceUID = ""
     @AppStorage(AppSettings.transcribeKey) private var transcribeRecordings = true
     @AppStorage(AppSettings.transcriptionLanguageKey) private var transcriptionLanguage = ""
@@ -133,7 +135,36 @@ struct SettingsView: View {
                 Toggle("Include microphone by default", isOn: $includeMicrophoneDefault)
                 note("Default for new recordings.")
             }
+
+            Section("Recordings") {
+                Picker("Format", selection: $compressRecordings) {
+                    Text("M4A (smaller)").tag(true)
+                    Text("CAF (lossless)").tag(false)
+                }
+                note("Recordings are saved as CAF and, with M4A, converted when they finish.")
+                LabeledContent(compressSummary) {
+                    Button("Compress to M4A…", action: confirmCompressAll)
+                        .disabled(store.compressible.isEmpty || !store.pendingCompression.isEmpty)
+                }
+            }
         }
+        .onAppear { store.reload() }
+    }
+
+    private var compressSummary: String {
+        if !store.pendingCompression.isEmpty { return "Compressing \(store.pendingCompression.count)…" }
+        let count = store.compressible.count
+        return count == 0 ? "No CAF recordings to compress" : "\(count) CAF recording\(count == 1 ? "" : "s")"
+    }
+
+    private func confirmCompressAll() {
+        let count = store.compressible.count
+        let alert = NSAlert()
+        alert.messageText = "Compress \(count) Recording\(count == 1 ? "" : "s") to M4A?"
+        alert.informativeText = "The audio files are converted to M4A, which is much smaller, and the lossless CAF originals are deleted. This can't be undone."
+        alert.addButton(withTitle: "Compress")
+        alert.addButton(withTitle: "Cancel")
+        if alert.runModal() == .alertFirstButtonReturn { store.compressAll() }
     }
 
     // MARK: Transcription

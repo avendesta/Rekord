@@ -14,6 +14,11 @@ final class RecordingStore: ObservableObject {
     @Published private(set) var transcriptErrors: [URL: String] = [:]
     /// Recordings whose mixdown failed; not retried until the next launch.
     private var failed: Set<URL> = []
+    private var isTranscribing = false
+    /// Recordings to convert to M4A once their mix and transcript no longer need the originals.
+    @Published private(set) var pendingCompression: Set<URL> = []
+    /// The one being converted; they go one at a time.
+    @Published private(set) var compressing: URL?
 
     private var sessionObserver: AnyCancellable?
 
@@ -31,11 +36,14 @@ final class RecordingStore: ObservableObject {
             .sink { [weak self, weak session] previous, current in
                 guard let self else { return }
                 self.reload()
-                // Only a recording that just finished is transcribed unasked; older ones have a button.
-                if case .recording = previous, current == .idle, AppSettings.transcribeRecordings,
+                // Only a recording that just finished is transcribed and compressed unasked; older
+                // ones have a button for each.
+                if case .recording = previous, current == .idle,
                    let folder = session?.lastSessionFolder,
                    let recording = self.recordings.first(where: { $0.folder.path == folder.path }) {
-                    self.transcribe(recording)
+                    if AppSettings.compressRecordings { self.pendingCompression.insert(recording.id) }
+                    if AppSettings.transcribeRecordings { self.transcribe(recording) }
+                    self.compressNext()
                 }
             }
     }
@@ -61,6 +69,42 @@ final class RecordingStore: ObservableObject {
         for recording in recordings where recording.includesMicrophone && !recording.isCombined && !failed.contains(recording.id) && recording.hasAudio {
             combine(recording)
         }
+        compressNext()
+    }
+
+    /// Recordings that still have CAF audio worth converting.
+    var compressible: [Recording] { recordings.filter { AudioCompressor.needsCompression(folder: $0.folder) } }
+
+    /// Converts every existing recording to M4A (the Settings button).
+    func compressAll() {
+        pendingCompression.formUnion(compressible.map(\.id))
+        compressNext()
+    }
+
+    /// Starts the next conversion that is safe to run: the mix is made (or can't be) and nothing
+    /// is transcribing the recording, since conversion deletes the files those read.
+    private func compressNext() {
+        guard compressing == nil else { return }
+        pendingCompression = pendingCompression.filter { id in recordings.contains { $0.id == id } }
+        for recording in recordings where pendingCompression.contains(recording.id) {
+            guard AudioCompressor.needsCompression(folder: recording.folder) else {
+                pendingCompression.remove(recording.id)
+                continue
+            }
+            let mixSettled = !recording.includesMicrophone || recording.isCombined || failed.contains(recording.id) || !recording.hasAudio
+            guard mixSettled, !combining.contains(recording.id), !transcriptQueue.contains(recording.id) else { continue }
+            compressing = recording.id
+            Task.detached {
+                try? AudioCompressor.compress(folder: recording.folder, metadata: recording.metadata)  // on failure the CAF stays
+                await MainActor.run {
+                    self.compressing = nil
+                    self.pendingCompression.remove(recording.id)
+                    self.reload()
+                    self.transcribeNext()
+                }
+            }
+            return
+        }
     }
 
     /// Queues a recording for transcription; also the retry after a failure.
@@ -68,15 +112,17 @@ final class RecordingStore: ObservableObject {
         guard Transcriber.isSupported, !transcriptQueue.contains(recording.id) else { return }
         transcriptErrors[recording.id] = nil
         transcriptQueue.append(recording.id)
-        if transcriptQueue.count == 1 { transcribeNext() }
+        transcribeNext()
     }
 
     private func transcribeNext() {
-        guard #available(macOS 26, *), let id = transcriptQueue.first else { return }
+        guard #available(macOS 26, *), !isTranscribing, let id = transcriptQueue.first else { return }
         guard let recording = recordings.first(where: { $0.id == id }) else {
             transcriptQueue.removeFirst()  // trashed while it waited
             return transcribeNext()
         }
+        guard compressing != id else { return }  // its files are being replaced; resumed when that ends
+        isTranscribing = true
         let language = AppSettings.transcriptionLanguage
         let timestamps = AppSettings.transcriptTimestamps
         let includeMicrophone = AppSettings.transcriptIncludesMicrophone
@@ -89,6 +135,7 @@ final class RecordingStore: ObservableObject {
                 failure = error.localizedDescription
             }
             await MainActor.run { [failure] in
+                self.isTranscribing = false
                 self.transcriptQueue.removeAll { $0 == id }
                 self.transcriptErrors[id] = failure
                 self.reload()

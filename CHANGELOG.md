@@ -2,7 +2,10 @@
 
 Each release's notes come from its `## <version>` section here, so add one before bumping `MARKETING_VERSION`.
 
-## 1.2.1
+## 1.3.0
+- **Smaller recordings.** When a recording finishes, its audio is now converted to M4A, typically a tenth of the size or less, and playable anywhere. Recording itself still writes CAF, so a crash can't cost you a meeting; the conversion happens after the mix and transcript are made.
+- **This replaces the lossless originals for new recordings.** To keep them, choose **CAF (lossless)** under Settings > Audio > Format.
+- Recordings you already have are left alone. **Compress to M4A…** in Settings > Audio converts them when you ask.
 - New setting, **Include microphone in transcripts** (Settings > Transcription, on by default). Turn it off to transcribe only the meeting audio, which avoids repeated lines when your microphone picks up the meeting from the speakers.
 
 ## 1.2.0

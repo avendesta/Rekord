@@ -262,6 +262,31 @@ final class StorageTests: XCTestCase {
         XCTAssertTrue(store.moveToTrash([recording]).isEmpty)
     }
 
+    @MainActor
+    func testStoreCompressesExistingRecordingsOnRequest() throws {
+        let withMic = try recording("with-mic", mic: true, files: ["system.caf": 0.5, "mic.caf": 0.5])
+        let json = """
+        {"startDate":"2026-09-24T09:00:00Z","durationSeconds":0.5,"includeMicrophone":true,
+         "files":["system.caf","mic.caf"],"systemSampleRate":48000,"micSampleRate":48000,"micOffsetSeconds":0}
+        """
+        try Data(json.utf8).write(to: withMic.folder.appendingPathComponent("session.json"))
+        UserDefaults.standard.set(root.path, forKey: AppSettings.outputFolderKey)
+        let store = RecordingStore()
+        store.reload()  // starts the mix; nothing is compressed unasked
+        XCTAssertTrue(store.pendingCompression.isEmpty)
+
+        store.compressAll()
+
+        // The mix has to exist first, then all three files are converted and the originals removed.
+        let done = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            store.pendingCompression.isEmpty && store.compressing == nil && store.combining.isEmpty
+        }, object: nil)
+        wait(for: [done], timeout: 15)
+        let names = try FileManager.default.contentsOfDirectory(atPath: withMic.folder.path).sorted()
+        XCTAssertEqual(names, ["combined.m4a", "mic.m4a", "session.json", "system.m4a"])
+        XCTAssertTrue(store.compressible.isEmpty)
+    }
+
     func testStoreIsEmptyWhenTheFolderDoesNotExist() {
         UserDefaults.standard.set(root.appendingPathComponent("missing").path, forKey: AppSettings.outputFolderKey)
         let store = RecordingStore()

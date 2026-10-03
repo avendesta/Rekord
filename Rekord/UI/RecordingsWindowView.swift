@@ -102,7 +102,8 @@ struct RecordingsWindowView: View {
             playback: playbackState(of: recording),
             player: player,
             onTogglePlay: { withAnimation(.easeInOut(duration: 0.15)) { player.toggle(recording) } },
-            activity: store.combining.contains(recording.id) ? "Mixing system + mic into combined.caf" : nil,
+            activity: store.combining.contains(recording.id) ? "Mixing system audio and microphone…"
+                : store.compressing == recording.id ? "Compressing to M4A…" : nil,
             transcript: transcriptState(of: recording),
             onTranscribe: { store.transcribe(recording) },
             onOpenTranscript: { store.openTranscript(recording) },

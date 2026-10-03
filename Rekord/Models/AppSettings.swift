@@ -28,6 +28,7 @@ enum AppSettings {
     static let inputDeviceUIDKey = "inputDeviceUID"
     static let lastRecordingModeKey = "lastRecordingMode"
     static let transcribeKey = "transcribeRecordings"
+    static let compressKey = "compressRecordings"
     /// "yes" or "no": whether the last recording received any system audio (shown in Settings > Privacy).
     static let systemAudioSeenKey = "systemAudioSeen"
     static let transcriptionLanguageKey = "transcriptionLanguage"
@@ -86,6 +87,11 @@ enum AppSettings {
             UserDefaults.standard.set(fresh, forKey: outputFolderBookmarkKey)
         }
         return url
+    }
+
+    /// On: finished recordings are converted from CAF to M4A. Off keeps the lossless originals.
+    static var compressRecordings: Bool {
+        UserDefaults.standard.object(forKey: compressKey) as? Bool ?? true
     }
 
     static var transcribeRecordings: Bool {

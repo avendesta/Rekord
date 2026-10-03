@@ -90,9 +90,9 @@ enum Transcriber {
         }
         guard let locale else { throw TranscriberError.unsupportedLanguage }
 
-        let system = try await segments(of: folder.appendingPathComponent("system.caf"), locale: locale)
+        let system = try await segments(of: Track.system.url(in: folder) ?? Track.system.original(in: folder), locale: locale)
         let mic = metadata.includeMicrophone && includeMicrophone
-            ? try await segments(of: folder.appendingPathComponent("mic.caf"), locale: locale)
+            ? try await segments(of: Track.mic.url(in: folder) ?? Track.mic.original(in: folder), locale: locale)
             : nil
         let text = Transcript.render(system: system, mic: mic, micOffset: metadata.micOffsetSeconds ?? 0, timestamps: timestamps)
 
