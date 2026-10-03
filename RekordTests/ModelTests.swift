@@ -38,6 +38,15 @@ final class RecordingSectionTests: XCTestCase {
         XCTAssertEqual(title("2025-12-31T08:00:00Z"), "Dec 31, 2025")
     }
 
+    func testTrashPromptsNameWhatWillGo() {
+        XCTAssertEqual(RecordingsWindowView.trashPrompt(count: 1, all: false, single: "Oct 3").title, "Move This Recording to Trash?")
+        XCTAssertEqual(RecordingsWindowView.trashPrompt(count: 3, all: false, single: "").title, "Move 3 Recordings to Trash?")
+        let all = RecordingsWindowView.trashPrompt(count: 11, all: true, single: "")
+        XCTAssertEqual(all.title, "Move All 11 Recordings to Trash?")
+        XCTAssertEqual(all.button, "Move All to Trash")
+        XCTAssertTrue(all.text.contains("transcript"))
+    }
+
     func testRecordingsAreGroupedByDayInOrder() {
         let now = date("2026-10-03T12:00:00Z")
         let recordings = ["2026-10-03T08:00:00Z", "2026-10-03T07:00:00Z", "2026-10-02T22:00:00Z", "2026-09-29T08:00:00Z"].map {

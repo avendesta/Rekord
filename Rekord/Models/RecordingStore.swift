@@ -119,12 +119,16 @@ final class RecordingStore: ObservableObject {
         }
     }
 
-    func moveToTrash(_ recording: Recording) {
-        do {
-            try FileManager.default.trashItem(at: recording.folder, resultingItemURL: nil)
-        } catch {
-            NSSound.beep()
+    func moveToTrash(_ recordings: [Recording]) {
+        var failed = false
+        for recording in recordings {
+            do {
+                try FileManager.default.trashItem(at: recording.folder, resultingItemURL: nil)
+            } catch {
+                failed = true
+            }
         }
+        if failed { NSSound.beep() }
         reload()
     }
 }

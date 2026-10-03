@@ -2,7 +2,7 @@ import SwiftUI
 
 struct RecordingsWindowView: View {
     @ObservedObject var store: RecordingStore
-    @State private var selection: URL?
+    @State private var selection: Set<URL> = []
 
     /// A short list reads fine as it is; day headers only earn their space once it grows.
     static let groupingThreshold = 8
@@ -19,8 +19,7 @@ struct RecordingsWindowView: View {
                     Text("Start a recording from the menu bar or press \(AppSettings.hotkey.display).")
                 }
             } else {
-                // Selection is drawn by the rows themselves: the system highlight would turn their text white.
-                List {
+                List(selection: $selection) {
                     if store.recordings.count < Self.groupingThreshold {
                         ForEach(store.recordings) { row($0, showsDate: true) }
                     } else {
@@ -32,27 +31,80 @@ struct RecordingsWindowView: View {
                     }
                 }
                 .listStyle(.inset)
+                .onDeleteCommand { confirmTrash(selected) }
             }
         }
         .frame(minWidth: 400, minHeight: 220)
         .navigationSubtitle(store.recordings.isEmpty ? "" : "\(store.recordings.count) recording\(store.recordings.count == 1 ? "" : "s")")
         .onAppear { store.reload() }
+        .toolbar {
+            if !selected.isEmpty {
+                ToolbarItem {
+                    Text("\(selected.count) selected").foregroundStyle(.secondary)
+                }
+                ToolbarItem {
+                    Button { confirmTrash(selected) } label: { Label("Delete Selected Recordings", systemImage: "trash") }
+                        .help(selected.count == 1 ? "Move Recording to Trash" : "Move \(selected.count) Recordings to Trash")
+                }
+            }
+            ToolbarItem {
+                Menu {
+                    Button("Delete All Recordings…", role: .destructive) { confirmTrash(store.recordings, all: true) }
+                        .disabled(store.recordings.isEmpty)
+                } label: {
+                    Label("More Actions", systemImage: "ellipsis.circle")
+                }
+                .help("More Actions")
+            }
+        }
+    }
+
+    /// The selection, minus anything that has since left the list.
+    private var selected: [Recording] { store.recordings.filter { selection.contains($0.id) } }
+
+    // NSAlert rather than .confirmationDialog: the latter can dismiss the menu bar popover.
+    private func confirmTrash(_ recordings: [Recording], all: Bool = false) {
+        guard let first = recordings.first else { return }
+        let alert = NSAlert()
+        let (title, text, button) = Self.trashPrompt(count: recordings.count, all: all,
+            single: first.startDate.formatted(date: .abbreviated, time: .shortened))
+        alert.messageText = title
+        alert.informativeText = text
+        alert.addButton(withTitle: button).hasDestructiveAction = true
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        store.moveToTrash(recordings)
+        selection.subtract(recordings.map(\.id))
+    }
+
+    static func trashPrompt(count: Int, all: Bool, single: String) -> (title: String, text: String, button: String) {
+        let transcripts = "Associated transcript files will also be moved to the Trash."
+        if all {
+            return ("Move All \(count) Recording\(count == 1 ? "" : "s") to Trash?",
+                    "All recordings in Rekord will be moved to the Trash.\n\(transcripts)", "Move All to Trash")
+        }
+        if count == 1 {
+            return ("Move This Recording to Trash?", "\(single)\n\(transcripts)", "Move to Trash")
+        }
+        return ("Move \(count) Recordings to Trash?", "These recordings will be moved to the Trash.\n\(transcripts)", "Move to Trash")
     }
 
     private func row(_ recording: Recording, showsDate: Bool) -> some View {
         RecordingRowView(
             recording: recording,
             showsDate: showsDate,
-            isSelected: selection == recording.id,
+            isSelected: selection.contains(recording.id),
             activity: store.combining.contains(recording.id) ? "Mixing system + mic into combined.caf" : nil,
             transcript: transcriptState(of: recording),
             onTranscribe: { store.transcribe(recording) },
             onOpenTranscript: { store.openTranscript(recording) },
             onReveal: { store.reveal(recording) },
-            onDelete: { store.moveToTrash(recording) }
+            // Trashing a selected row trashes the whole selection, as in Finder.
+            onDelete: { confirmTrash(selection.contains(recording.id) ? selected : [recording]) }
         )
+        .frame(maxWidth: 640, alignment: .leading)
         .listRowSeparator(.hidden)
-        .onTapGesture { selection = recording.id }
+        .tag(recording.id)
     }
 
     private func transcriptState(of recording: Recording) -> RecordingRowView.TranscriptState? {
