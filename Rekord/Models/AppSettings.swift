@@ -29,6 +29,7 @@ enum AppSettings {
     static let lastRecordingModeKey = "lastRecordingMode"
     static let transcribeKey = "transcribeRecordings"
     static let compressKey = "compressRecordings"
+    static let audioRetentionDaysKey = "audioRetentionDays"
     /// "yes" or "no": whether the last recording received any system audio (shown in Settings > Privacy).
     static let systemAudioSeenKey = "systemAudioSeen"
     static let transcriptionLanguageKey = "transcriptionLanguage"
@@ -92,6 +93,11 @@ enum AppSettings {
     /// On: finished recordings are converted from CAF to M4A. Off keeps the lossless originals.
     static var compressRecordings: Bool {
         UserDefaults.standard.object(forKey: compressKey) as? Bool ?? true
+    }
+
+    /// Days after which a transcribed recording's audio is moved to the Trash; 0 keeps it for ever.
+    static var audioRetentionDays: Int {
+        UserDefaults.standard.object(forKey: audioRetentionDaysKey) as? Int ?? 7
     }
 
     static var transcribeRecordings: Bool {

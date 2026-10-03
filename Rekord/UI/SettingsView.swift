@@ -11,6 +11,7 @@ struct SettingsView: View {
     @ObservedObject var hotkey: HotkeyPopupController
     @ObservedObject var store: RecordingStore
     @AppStorage(AppSettings.compressKey) private var compressRecordings = true
+    @AppStorage(AppSettings.audioRetentionDaysKey) private var audioRetentionDays = 7
     @AppStorage(AppSettings.inputDeviceUIDKey) private var inputDeviceUID = ""
     @AppStorage(AppSettings.transcribeKey) private var transcribeRecordings = true
     @AppStorage(AppSettings.transcriptionLanguageKey) private var transcriptionLanguage = ""
@@ -146,6 +147,11 @@ struct SettingsView: View {
                     Button("Compress to M4A…", action: confirmCompressAll)
                         .disabled(store.compressible.isEmpty || !store.pendingCompression.isEmpty)
                 }
+                Picker("Delete audio after", selection: $audioRetentionDays) {
+                    ForEach([7, 14, 30, 90], id: \.self) { Text("\($0) days").tag($0) }
+                    Text("Never").tag(0)
+                }
+                note("Moves old audio to the Trash. The transcript and name are kept, and recordings without a transcript keep their audio.")
             }
         }
         .onAppear { store.reload() }

@@ -118,6 +118,7 @@ struct RecordingsWindowView: View {
             transcript: transcriptState(of: recording),
             onTranscribe: { store.transcribe(recording) },
             onOpenTranscript: { store.openTranscript(recording) },
+            onCopyTranscript: { store.copyTranscript(recording) },
             onRename: { store.rename(recording, to: $0) },
             onReveal: { store.reveal(recording) },
             onDelete: { trash(recording) }
@@ -127,7 +128,9 @@ struct RecordingsWindowView: View {
 
     private func playbackState(of recording: Recording) -> RecordingRowView.PlaybackState {
         if session.isRecording { return .unavailable("Playback is unavailable while recording.") }
-        guard recording.hasAudio else { return .unavailable("Audio file unavailable") }
+        guard recording.hasAudio else {
+            return .unavailable(recording.hasTranscript ? "The audio has been removed. The transcript is kept." : "Audio file unavailable")
+        }
         guard recording.playableURL != nil else {
             return .unavailable(recording.includesMicrophone && !recording.isCombined ? "Still preparing this recording…" : "This recording has no audio.")
         }

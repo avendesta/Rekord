@@ -60,12 +60,33 @@ final class RecordingStore: ObservableObject {
         }
         .sorted { $0.startDate > $1.startDate }
 
+        removeExpiredAudio()
+
         // Every recording with a mic track gets its mixdown, without the user asking.
         // Skipped when an audio file is missing (a folder someone tidied by hand): it can never succeed.
         for recording in recordings where recording.includesMicrophone && !recording.isCombined && !failed.contains(recording.id) && recording.hasAudio {
             combine(recording)
         }
         compressNext()
+    }
+
+    /// Moves the audio of old recordings to the Trash, keeping the transcript and the name. Only
+    /// recordings that have a transcript qualify, so nothing is ever left with neither.
+    private func removeExpiredAudio(now: Date = Date()) {
+        let days = AppSettings.audioRetentionDays
+        guard days > 0 else { return }
+        let cutoff = now.addingTimeInterval(-Double(days) * 86_400)
+        for recording in recordings where recording.startDate < cutoff && recording.hasTranscript {
+            // Leave alone anything still being worked on.
+            guard !combining.contains(recording.id), compressing != recording.id,
+                  !transcriptQueue.contains(recording.id), !pendingCompression.contains(recording.id) else { continue }
+            for track in Track.allCases {
+                for file in [track.original(in: recording.folder), track.original(in: recording.folder).deletingPathExtension().appendingPathExtension("m4a")]
+                where FileManager.default.fileExists(atPath: file.path) {
+                    try? FileManager.default.trashItem(at: file, resultingItemURL: nil)
+                }
+            }
+        }
     }
 
     /// Recordings that still have CAF audio worth converting.
@@ -152,6 +173,14 @@ final class RecordingStore: ObservableObject {
             NSSound.beep()
         }
         reload()
+    }
+
+    /// Puts the transcript on the clipboard under a short header, so it explains itself when
+    /// pasted somewhere else, such as into an AI assistant.
+    func copyTranscript(_ recording: Recording) {
+        guard let text = recording.transcriptForSharing() else { return NSSound.beep() }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
     }
 
     func openTranscript(_ recording: Recording) {

@@ -89,7 +89,8 @@ final class MetadataTests: XCTestCase {
 /// These touch the app's real UserDefaults (the tests run inside the app), so they restore what they change.
 @MainActor
 final class StorageTests: XCTestCase {
-    private let keys = [AppSettings.outputFolderKey, AppSettings.outputFolderBookmarkKey, AppSettings.transcribeKey]
+    private let keys = [AppSettings.outputFolderKey, AppSettings.outputFolderBookmarkKey, AppSettings.transcribeKey,
+                        AppSettings.audioRetentionDaysKey]
     private var saved: [String: Any] = [:]
     private var root: URL!
 
@@ -99,6 +100,7 @@ final class StorageTests: XCTestCase {
             UserDefaults.standard.removeObject(forKey: key)
         }
         UserDefaults.standard.set(false, forKey: AppSettings.transcribeKey)  // no speech model in these tests
+        UserDefaults.standard.set(0, forKey: AppSettings.audioRetentionDaysKey)  // only the retention test removes audio
         root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     }
@@ -285,6 +287,65 @@ final class StorageTests: XCTestCase {
         let names = try FileManager.default.contentsOfDirectory(atPath: withMic.folder.path).sorted()
         XCTAssertEqual(names, ["combined.m4a", "mic.m4a", "session.json", "system.m4a"])
         XCTAssertTrue(store.compressible.isEmpty)
+    }
+
+    func testCopiedTranscriptSaysWhatItIs() throws {
+        func make(_ folder: String, name: String?, seconds: Double) throws -> Recording {
+            let url = root.appendingPathComponent(folder, isDirectory: true)
+            try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+            try Data("[00:03] Others: Shall we start?\n".utf8).write(to: url.appendingPathComponent("transcript.txt"))
+            return Recording(folder: url, metadata: .init(
+                startDate: Date(timeIntervalSince1970: 1_790_000_000), durationSeconds: seconds, includeMicrophone: true,
+                files: [], systemSampleRate: 48_000, micSampleRate: nil, micOffsetSeconds: nil, name: name))
+        }
+        let locale = Locale(identifier: "en_US"), utc = TimeZone(identifier: "UTC")!
+
+        XCTAssertEqual(try make("a", name: "Weekly planning", seconds: 754).transcriptForSharing(locale: locale, timeZone: utc),
+                       "Weekly planning\nRecorded Sep 21, 2026 at 2:13\u{202F}PM · 12:34\n\n[00:03] Others: Shall we start?\n")
+        XCTAssertEqual(try make("b", name: nil, seconds: 3725).transcriptForSharing(locale: locale, timeZone: utc),
+                       "Recorded Sep 21, 2026 at 2:13\u{202F}PM · 1:02:05\n\n[00:03] Others: Shall we start?\n")
+        XCTAssertNil(Recording(folder: root.appendingPathComponent("none"), metadata: try make("c", name: nil, seconds: 1).metadata).transcriptForSharing())
+    }
+
+    func testOldAudioIsRemovedButTheTranscriptStays() throws {
+        /// A system-only session `daysOld` days ago, with real audio and, if asked, a transcript.
+        func session(_ name: String, daysOld: Double, transcript: Bool) throws -> URL {
+            let folder = root.appendingPathComponent(name, isDirectory: true)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            try writeTestTrack(at: folder.appendingPathComponent("system.caf"), seconds: 0.2, level: 0.1)
+            try AudioCompressor.compress(folder.appendingPathComponent("system.caf"))
+            try RecordingSession.Metadata(
+                startDate: Date().addingTimeInterval(-daysOld * 86_400), durationSeconds: 0.2, includeMicrophone: false,
+                files: ["system.m4a"], systemSampleRate: 48_000, micSampleRate: nil, micOffsetSeconds: nil, name: "Kept name"
+            ).write(to: folder)
+            if transcript { try Data("Hello.\n".utf8).write(to: folder.appendingPathComponent("transcript.txt")) }
+            return folder
+        }
+        func files(_ folder: URL) throws -> [String] { try FileManager.default.contentsOfDirectory(atPath: folder.path).sorted() }
+        let old = try session("old", daysOld: 8, transcript: true)
+        let oldWithoutTranscript = try session("old-no-transcript", daysOld: 8, transcript: false)
+        let recent = try session("recent", daysOld: 6, transcript: true)
+        UserDefaults.standard.set(root.path, forKey: AppSettings.outputFolderKey)
+        let store = RecordingStore()
+
+        store.reload()  // retention is off in these tests: nothing goes
+        XCTAssertEqual(try files(old), ["session.json", "system.m4a", "transcript.txt"])
+
+        UserDefaults.standard.set(7, forKey: AppSettings.audioRetentionDaysKey)
+        store.reload()
+
+        XCTAssertEqual(try files(old), ["session.json", "transcript.txt"])
+        XCTAssertEqual(try files(oldWithoutTranscript), ["session.json", "system.m4a"])  // never left with neither
+        XCTAssertEqual(try files(recent), ["session.json", "system.m4a", "transcript.txt"])
+        let kept = try XCTUnwrap(store.recordings.first { $0.folder.lastPathComponent == "old" })
+        XCTAssertEqual(kept.name, "Kept name")
+        XCTAssertTrue(kept.hasTranscript && !kept.hasAudio)
+        XCTAssertNil(kept.playableURL)
+    }
+
+    func testAudioIsKeptForAWeekByDefault() {
+        UserDefaults.standard.removeObject(forKey: AppSettings.audioRetentionDaysKey)
+        XCTAssertEqual(AppSettings.audioRetentionDays, 7)
     }
 
     func testRenamingChangesOnlyTheDisplayName() throws {

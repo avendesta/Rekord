@@ -5,6 +5,8 @@ import Speech
 struct TranscriptSegment: Equatable {
     var start: Double
     var text: String
+    /// Where the speech stops; nil is treated as a segment with no length.
+    var end: Double?
 }
 
 /// Turns the two tracks' segments into the text of `transcript.txt`.
@@ -14,19 +16,88 @@ enum Transcript {
     /// `mic` is nil for a system-only recording, which gets no speaker labels. `micOffset` follows
     /// `session.json`: positive means the mic started later, so its times shift forward.
     static func render(system: [TranscriptSegment], mic: [TranscriptSegment]?, micOffset: Double = 0, timestamps: Bool = true) -> String {
-        var lines: [(time: Double, text: String)] = []
+        let mic = mic.map { withoutEcho(mic: $0, system: system, micOffset: micOffset) }
+        typealias Line = (time: Double, end: Double, speaker: String?, text: String)
+        var lines: [Line] = []
         for segment in system {
-            lines.append((segment.start + max(0, -micOffset), mic == nil ? segment.text : "Others: " + segment.text))
+            let shift = max(0, -micOffset)
+            lines.append((segment.start + shift, (segment.end ?? segment.start) + shift, mic == nil ? nil : "Others", segment.text))
         }
         for segment in mic ?? [] {
-            lines.append((segment.start + max(0, micOffset), "Me: " + segment.text))
+            let shift = max(0, micOffset)
+            lines.append((segment.start + shift, (segment.end ?? segment.start) + shift, "Me", segment.text))
         }
         guard !lines.isEmpty else { return noSpeech + "\n" }
-        let long = lines.contains { $0.time >= 3600 }
-        return lines.enumerated()
+        let sorted = lines.enumerated()
             .sorted { ($0.element.time, $0.offset) < ($1.element.time, $1.offset) }  // stable on ties
-            .map { (timestamps ? "[\(timestamp($0.element.time, hours: long))] " : "") + $0.element.text + "\n" }
-            .joined()
+            .map(\.element)
+
+        // One paragraph per stretch of one person talking: it reads as prose and is shorter to
+        // paste. A new one starts when the speaker changes, after a pause, or when it gets long.
+        var paragraphs: [Line] = []
+        for line in sorted {
+            if let last = paragraphs.last, last.speaker == line.speaker,
+               line.time - last.end <= paragraphPause, line.time - last.time < paragraphLength {
+                paragraphs[paragraphs.count - 1].text += " " + line.text
+                paragraphs[paragraphs.count - 1].end = max(last.end, line.end)
+            } else {
+                paragraphs.append(line)
+            }
+        }
+        let long = paragraphs.contains { $0.time >= 3600 }
+        return paragraphs.map {
+            (timestamps ? "[\(timestamp($0.time, hours: long))] " : "") + ($0.speaker.map { $0 + ": " } ?? "") + $0.text
+        }.joined(separator: "\n\n") + "\n"
+    }
+
+    /// A silence longer than this, in seconds, starts a new paragraph.
+    static let paragraphPause = 3.0
+    /// A paragraph that has run this long, in seconds, is closed at the next sentence.
+    static let paragraphLength = 60.0
+
+    /// Drops the microphone segments that are only the meeting coming out of the speakers.
+    ///
+    /// With speakers, the mic hears the meeting, so each sentence is transcribed twice: from the
+    /// system track and, at the same moment, from the mic track. A mic segment counts as such an
+    /// echo when most of its words appear, in order, in what the system track said within a couple
+    /// of seconds of it. Time and words must both match, so what the user really said is kept,
+    /// even while someone else is talking.
+    static func withoutEcho(mic: [TranscriptSegment], system: [TranscriptSegment], micOffset: Double) -> [TranscriptSegment] {
+        let micShift = max(0, micOffset), systemShift = max(0, -micOffset)
+        let heard = system.map { (from: $0.start + systemShift, to: ($0.end ?? $0.start) + systemShift, words: words(of: $0.text)) }
+        return mic.filter { segment in
+            let said = words(of: segment.text)
+            guard !said.isEmpty else { return false }
+            let from = segment.start + micShift - echoWindow, to = (segment.end ?? segment.start) + micShift + echoWindow
+            let nearby = heard.filter { $0.to >= from && $0.from <= to }
+            // A word or two ("Yeah.", "Okay, thanks") turns up in other people's sentences by chance,
+            // so something that short is only an echo of a line that says exactly the same.
+            if said.count < 3 { return !nearby.contains { $0.words == said } }
+            let shared = longestCommonSubsequence(said, nearby.flatMap(\.words))
+            return Double(shared) / Double(said.count) < echoShare
+        }
+    }
+
+    /// Seconds either side of a mic segment in which the system track is searched for the same words.
+    static let echoWindow = 2.0
+    /// The share of a mic segment's words that must be found for it to count as an echo.
+    static let echoShare = 0.75
+
+    static func words(of text: String) -> [String] {
+        text.lowercased().split { !$0.isLetter && !$0.isNumber && $0 != "'" && $0 != "’" }.map(String.init)
+    }
+
+    private static func longestCommonSubsequence(_ a: [String], _ b: [String]) -> Int {
+        guard !a.isEmpty, !b.isEmpty else { return 0 }
+        var previous = [Int](repeating: 0, count: b.count + 1)
+        for x in a {
+            var current = [Int](repeating: 0, count: b.count + 1)
+            for (j, y) in b.enumerated() {
+                current[j + 1] = x == y ? previous[j] + 1 : max(previous[j + 1], current[j])
+            }
+            previous = current
+        }
+        return previous[b.count]
     }
 
     static func timestamp(_ seconds: Double, hours: Bool) -> String {
@@ -115,7 +186,9 @@ enum Transcriber {
         var segments: [TranscriptSegment] = []
         for try await result in transcriber.results {
             let text = String(result.text.characters).trimmingCharacters(in: .whitespacesAndNewlines)
-            if !text.isEmpty { segments.append(TranscriptSegment(start: result.range.start.seconds, text: text)) }
+            if !text.isEmpty {
+                segments.append(TranscriptSegment(start: result.range.start.seconds, text: text, end: result.range.end.seconds))
+            }
         }
         _ = analyzer  // kept alive until the results end
         return segments
