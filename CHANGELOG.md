@@ -4,6 +4,7 @@ Each release's notes come from its `## <version>` section here, so add one befor
 
 ## 1.5.0
 - **Name your recordings.** Double-click a recording's time (or choose Rename… from the right-click menu) and type a name. It is only a label inside Rekord: files and folders keep their names. Clear the name to go back to the time.
+- **Tooltips work.** Hovering a button in the Recordings or Settings window now shows what it does. They never appeared before, because macOS hides tooltips in a window whose app isn't the active one.
 - **Simpler rows.** Recordings are always grouped by day, so a row shows just the time (or name), the length, and a microphone symbol when the microphone was included.
 
 ## 1.4.0
