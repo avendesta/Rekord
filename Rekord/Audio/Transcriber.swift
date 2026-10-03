@@ -63,10 +63,14 @@ enum Transcriber {
     /// Writes `transcript.txt` into a recording's folder and returns its URL. Gives up after a time
     /// limit, so one recording the speech model chokes on can't hold up the ones queued behind it.
     @available(macOS 26, *)
-    static func transcribe(folder: URL, metadata: RecordingSession.Metadata, language: String?, timestamps: Bool = true) async throws -> URL {
+    static func transcribe(folder: URL, metadata: RecordingSession.Metadata, language: String?, timestamps: Bool = true,
+                           includeMicrophone: Bool = true) async throws -> URL {
         let limit = max(120, metadata.durationSeconds * 2)
         return try await withThrowingTaskGroup(of: URL.self) { group in
-            group.addTask { try await write(folder: folder, metadata: metadata, language: language, timestamps: timestamps) }
+            group.addTask {
+                try await write(folder: folder, metadata: metadata, language: language, timestamps: timestamps,
+                                includeMicrophone: includeMicrophone)
+            }
             group.addTask {
                 try await Task.sleep(for: .seconds(limit))
                 throw TranscriberError.timedOut
@@ -77,7 +81,8 @@ enum Transcriber {
     }
 
     @available(macOS 26, *)
-    private static func write(folder: URL, metadata: RecordingSession.Metadata, language: String?, timestamps: Bool) async throws -> URL {
+    private static func write(folder: URL, metadata: RecordingSession.Metadata, language: String?, timestamps: Bool,
+                              includeMicrophone: Bool) async throws -> URL {
         let preferred = language.map(Locale.init(identifier:)) ?? .current
         var locale = await SpeechTranscriber.supportedLocale(equivalentTo: preferred)
         if locale == nil, language == nil {
@@ -85,9 +90,9 @@ enum Transcriber {
         }
         guard let locale else { throw TranscriberError.unsupportedLanguage }
 
-        let system = try await segments(of: folder.appendingPathComponent("system.caf"), locale: locale)
-        let mic = metadata.includeMicrophone
-            ? try await segments(of: folder.appendingPathComponent("mic.caf"), locale: locale)
+        let system = try await segments(of: Track.system.url(in: folder) ?? Track.system.original(in: folder), locale: locale)
+        let mic = metadata.includeMicrophone && includeMicrophone
+            ? try await segments(of: Track.mic.url(in: folder) ?? Track.mic.original(in: folder), locale: locale)
             : nil
         let text = Transcript.render(system: system, mic: mic, micOffset: metadata.micOffsetSeconds ?? 0, timestamps: timestamps)
 

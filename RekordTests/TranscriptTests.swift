@@ -73,6 +73,13 @@ final class TranscriberTests: XCTestCase {
         XCTAssertEqual(lines.count, 2)
         XCTAssertTrue(lines[0].hasPrefix("[00:00] Others: ") && lines[0].lowercased().contains("shall we start"), lines[0])
         XCTAssertTrue(lines[1].hasPrefix("[00:03] Me: ") && lines[1].lowercased().contains("updates"), lines[1])
+
+        // Leaving the microphone out transcribes the system track alone, without speaker labels.
+        let systemOnly = try await Transcriber.transcribe(folder: folder, metadata: metadata, language: "en-US", includeMicrophone: false)
+        let text = try String(contentsOf: systemOnly, encoding: .utf8)
+        XCTAssertEqual(text.split(separator: "\n").count, 1)
+        XCTAssertTrue(text.hasPrefix("[00:00] Shall we start"), text)
+        XCTAssertFalse(text.contains("Me:") || text.contains("Others:"), text)
     }
 
     func testAnEmptyAudioFileFinishesWithNoSpeech() async throws {

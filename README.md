@@ -102,22 +102,22 @@ Each recording is a folder in `~/Documents/Rekord/` (or the folder you chose in 
 
 ```
 2026-09-23_14-30-00/
-  system.caf      meeting audio
-  mic.caf         your microphone (only if it was included)
-  combined.caf    both mixed together (made automatically when the mic was included)
+  system.m4a      meeting audio
+  mic.m4a         your microphone (only if it was included)
+  combined.m4a    both mixed together (made automatically when the mic was included)
   transcript.txt  what was said, with times (macOS 26 or later)
   session.json    start time, duration, sample rates, mic/system sync offset
 ```
 
-Files are lossless `.caf` audio. If a tool you use doesn't accept `.caf`, convert it: `afconvert -f WAVE -d LEI16 system.caf system.wav` (or `ffmpeg -i system.caf system.wav`).
+Audio is recorded as `.caf`, which survives a crash, and converted to `.m4a` when the recording finishes, so the files are small and play anywhere. To keep the lossless `.caf` files instead, choose **CAF (lossless)** in **Settings > Audio**; convert one for another tool with `afconvert -f WAVE -d LEI16 system.caf system.wav`.
 
 ### Settings
 
 Open **Settings…** from the menu. It has four tabs:
 
 - **General:** launch at login (the shortcut only works while Rekord is running), the shortcut (any combination that includes ⌘, ⌥ or ⌃) and the save location.
-- **Audio:** which microphone Rekord uses, without changing your Mac's system input, and whether the microphone is on by default.
-- **Transcription:** automatic transcripts, language and timestamps (macOS 26 or later).
+- **Audio:** which microphone Rekord uses, without changing your Mac's system input, whether the microphone is on by default, and the format recordings are kept in (M4A or lossless CAF), with a button to compress older recordings.
+- **Transcription:** automatic transcripts, language, timestamps and whether the microphone is included (macOS 26 or later). Leave the microphone out if it picks up the meeting from your speakers and lines appear twice.
 - **Privacy:** the state of the Microphone and System Audio permissions, with links to their System Settings pages. macOS doesn't report the System Audio permission, so Rekord shows whether your last recording received system audio.
 
 ### Tips and troubleshooting
@@ -157,6 +157,7 @@ The unit tests in `RekordTests/` cover the mixdown (`CombineEngine`), transcript
 - **Microphone:** `MicRecorder` taps an `AVAudioEngine` input node, writing on its own queue. It can point that engine at a chosen device without changing the system default.
 - **Session:** `RecordingSession` starts both, records each track's first-buffer host time so `session.json` can store the sync offset, and rolls back on any start failure.
 - **Transcripts:** `Transcriber` runs Apple's `SpeechAnalyzer` (macOS 26+) over each track and `Transcript.render` merges them on the recording's timeline. Older systems skip it.
+- **Compression:** once the mix and transcript are done, `AudioCompressor` converts each CAF to M4A, checks the result has exactly the same length, and only then deletes the original. `Track` finds a recording's files in either format.
 - **Combine:** `RecordingStore` mixes every finished mic recording automatically; `CombineEngine` mixes the tracks offline with `AVAudioEngine` manual rendering, padding whichever track started later.
 - **Shortcut:** `HotkeyManager` uses Carbon's `RegisterEventHotKey`, which works globally without Accessibility permission.
 
