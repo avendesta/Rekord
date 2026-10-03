@@ -2,6 +2,13 @@
 
 Each release's notes come from its `## <version>` section here, so add one before bumping `MARKETING_VERSION`.
 
+## 1.6.0
+- **Audio is now removed after 7 days.** Once a recording has a transcript and is more than a week old, its audio files are moved to the Trash; the transcript and the name stay. **This applies to recordings you already have**, the first time Rekord lists them after updating. Change the period, or choose Never, under Settings > Audio > Delete audio after. Recordings without a transcript always keep their audio.
+- **No more doubled lines.** With speakers, your microphone hears the meeting, and each sentence used to appear twice in the transcript. Rekord now leaves out a microphone line that repeats what the meeting audio said at the same moment. It cleans the transcript only, not the audio, and an echo the recogniser garbled can still slip through.
+- **Paragraphs.** A transcript is written as one paragraph per stretch of a speaker, with one timestamp each, instead of a line per sentence.
+- **Copy Transcript.** Right-click a recording to copy its transcript, headed by its name, date and length, ready to paste into an AI assistant.
+- Transcripts already on disk keep their old layout.
+
 ## 1.5.0
 - **Name your recordings.** Double-click a recording's time (or choose Rename… from the right-click menu) and type a name. It is only a label inside Rekord: files and folders keep their names. Clear the name to go back to the time.
 - **Tooltips work.** Hovering a button in the Recordings or Settings window now shows what it does. They never appeared before, because macOS hides tooltips in a window whose app isn't the active one.
