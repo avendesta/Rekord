@@ -1,8 +1,8 @@
 # Rekord
 
-Record your meetings on a Mac as **two separate audio tracks**: the meeting audio (Zoom, Webex, Meet, anything playing on your Mac) and your **microphone**. Separate tracks make transcription and speaker labelling much easier. When you'd rather have one file, Rekord also saves a mix of the two.
+Record your meetings on a Mac and get a **transcript** you can read or hand to an AI assistant. Rekord records the meeting audio (Zoom, Webex, Meet, anything playing on your Mac) and your **microphone** as two separate tracks, which is what lets the transcript say who spoke: **Me** or **Others**.
 
-Rekord lives in the menu bar, has no Dock icon, and needs no virtual audio driver.
+Everything happens on your Mac: the recording, the transcript (macOS 26 or later) and the mix of both tracks. Rekord lives in the menu bar, has no Dock icon, and needs no virtual audio driver.
 
 ## Screenshots
 
@@ -19,12 +19,12 @@ Rekord lives in the menu bar, has no Dock icon, and needs no virtual audio drive
   </tr>
   <tr>
     <td align="center" valign="top">
-      <img src="docs/screenshots/recordings.png" width="340" alt="The Recordings window listing past recordings with reveal and delete buttons"><br>
+      <img src="docs/screenshots/recordings.png" width="340" alt="The Recordings window: recordings grouped under Today, Yesterday and a date, each with a play button, a name or time, its length and a microphone symbol"><br>
       <sub>Recordings</sub>
     </td>
     <td align="center" valign="top">
-      <img src="docs/screenshots/settings.png" width="260" alt="The Settings window with startup, microphone, shortcut, recordings and permissions sections"><br>
-      <sub>Settings</sub>
+      <img src="docs/screenshots/settings.png" width="380" alt="The Transcription tab of Settings: transcribe new recordings automatically, language, timestamps, and include microphone"><br>
+      <sub>Settings: Transcription</sub>
     </td>
   </tr>
 </table>
@@ -111,8 +111,10 @@ Each recording is a folder in `~/Documents/Rekord/` (or the folder you chose in 
   mic.m4a         your microphone (only if it was included)
   combined.m4a    both mixed together (made automatically when the mic was included)
   transcript.txt  what was said, with times (macOS 26 or later)
-  session.json    start time, duration, sample rates, mic/system sync offset
+  session.json    start time, duration, sample rates, mic/system sync offset, and the name you gave it
 ```
+
+After the period set in Settings (7 days by default), the three audio files of a transcribed recording are moved to the Trash; `transcript.txt` and `session.json` stay.
 
 Audio is recorded as `.caf`, which survives a crash, and converted to `.m4a` when the recording finishes, so the files are small and play anywhere. To keep the lossless `.caf` files instead, choose **CAF (lossless)** in **Settings > Audio**; convert one for another tool with `afconvert -f WAVE -d LEI16 system.caf system.wav`.
 
@@ -127,7 +129,7 @@ Open **Settings…** from the menu. It has four tabs:
 
 ### Tips and troubleshooting
 
-- **Use headphones.** On speakers, the microphone also hears the meeting from the room, so it ends up on your mic track too.
+- **Use headphones.** On speakers, the microphone also hears the meeting from the room, so it ends up on your mic track too. Rekord leaves those repeated lines out of the transcript, but they are still in the audio.
 - **The shortcut does nothing.** Rekord must be running (turn on *Launch at login*), and another app may already use that combination. Rekord shows a warning when it can't claim the shortcut; pick another one in Settings.
 - **Nothing is recorded from other people.** Check the System Audio permission above.
 - Rekord records everything your Mac plays, not just one app. Mute other audio you don't want in the file.
@@ -154,7 +156,7 @@ xcodebuild test -project Rekord.xcodeproj -scheme Rekord -destination 'platform=
   CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM=
 ```
 
-The unit tests in `RekordTests/` cover the mixdown (`CombineEngine`), transcript layout, `session.json`, shortcuts, the output folder setting and the recordings list, and CI runs them on every pull request. Because they run inside the app, they read and restore the app's real settings. Core Audio taps need real hardware and real permissions, so capture has no automated tests; test that by recording.
+The unit tests in `RekordTests/` cover the mixdown, the transcript (echo removal and paragraphs), M4A conversion, pausing, playback state, audio removal, `session.json`, shortcuts, the output folder setting and the recordings list, and CI runs them on every pull request. A few use the real speech model and are skipped where it isn't installed. Because they run inside the app, they read and restore the app's real settings. Core Audio taps need real hardware and real permissions, so capture has no automated tests; test that by recording.
 
 ### How it works
 
@@ -162,7 +164,9 @@ The unit tests in `RekordTests/` cover the mixdown (`CombineEngine`), transcript
 - **Microphone:** `MicRecorder` taps an `AVAudioEngine` input node, writing on its own queue. It can point that engine at a chosen device without changing the system default.
 - **Pause:** `PauseGate` holds the paused stretches as host times; both recorders cut their buffers at exactly those moments, so the tracks stay in step.
 - **Session:** `RecordingSession` starts both, records each track's first-buffer host time so `session.json` can store the sync offset, and rolls back on any start failure.
-- **Transcripts:** `Transcriber` runs Apple's `SpeechAnalyzer` (macOS 26+) over each track and `Transcript.render` merges them on the recording's timeline. Older systems skip it.
+- **Transcripts:** `Transcriber` runs Apple's `SpeechAnalyzer` (macOS 26+) over each track. `Transcript.render` puts both on the recording's timeline, drops microphone segments that only repeat the system track (`withoutEcho`), and joins each speaker's sentences into paragraphs. Older systems skip it.
+- **Retention:** `RecordingStore` moves the audio of old, transcribed recordings to the Trash when it reloads.
+- **Playback:** `PlaybackController` is one `AVAudioPlayer` shared by the Recordings window.
 - **Compression:** once the mix and transcript are done, `AudioCompressor` converts each CAF to M4A, checks the result has exactly the same length, and only then deletes the original. `Track` finds a recording's files in either format.
 - **Combine:** `RecordingStore` mixes every finished mic recording automatically; `CombineEngine` mixes the tracks offline with `AVAudioEngine` manual rendering, padding whichever track started later.
 - **Shortcut:** `HotkeyManager` uses Carbon's `RegisterEventHotKey`, which works globally without Accessibility permission.
@@ -170,8 +174,9 @@ The unit tests in `RekordTests/` cover the mixdown (`CombineEngine`), transcript
 ```
 Rekord/
   App/       RekordApp: menu bar scene, windows
-  Audio/     SystemAudioRecorder, MicRecorder, RecordingSession, CombineEngine,
-             AudioInputDevices, PermissionsManager
+  Audio/     SystemAudioRecorder, MicRecorder, RecordingSession, PauseGate, CombineEngine,
+             Transcriber, AudioCompressor, PlaybackController, AudioInputDevices,
+             PermissionsManager
   Models/    Recording, RecordingStore, AppSettings
   UI/        MenuBarView, RecordingsWindowView, RecordingRowView, SettingsView,
              HotkeyManager, HotkeyPopupView
