@@ -56,7 +56,7 @@ jobs:
     needs: check
     # A manual run always builds (as a dry run) unless it is tap-only; a push builds only for a new version.
     if: (needs.check.outputs.should_release == 'true' || github.event_name == 'workflow_dispatch') && !inputs.update_tap_only
-    runs-on: macos-15
+    runs-on: macos-26  # transcription needs the macOS 26 SDK
     # The first notarization from a new Apple account can take hours; later ones take minutes.
     timeout-minutes: 300
     # Holds the signing secrets; only protected branches (main) may use this environment.

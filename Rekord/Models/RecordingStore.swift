@@ -8,6 +8,10 @@ final class RecordingStore: ObservableObject {
     @Published private(set) var recordings: [Recording] = []
     @Published private(set) var combining: Set<URL> = []
     @Published private(set) var combineError: String?
+    /// Recordings waiting for or having their transcript made; the first one is running.
+    @Published private(set) var transcriptQueue: [URL] = []
+    /// Why a recording's last transcription failed, shown on its row until it is retried.
+    @Published private(set) var transcriptErrors: [URL: String] = [:]
     /// Recordings whose mixdown failed; not retried until the next launch.
     private var failed: Set<URL> = []
 
@@ -15,14 +19,27 @@ final class RecordingStore: ObservableObject {
 
     static var rootFolder: URL { AppSettings.outputFolder }
 
-    /// Reloads whenever the session changes state, so a finished recording is listed and mixed even
-    /// if no window is open. Deferred a turn: `stop()` writes session.json after it changes state.
+    /// Reloads whenever the session changes state, so a finished recording is listed, mixed and
+    /// transcribed even if no window is open. Deferred a turn: `stop()` writes session.json after
+    /// it changes state.
     func follow(_ session: RecordingSession) {
         sessionObserver = session.$state
+            .removeDuplicates()
+            .scan((State.idle, State.idle)) { ($0.1, $1) }
             .dropFirst()
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.reload() }
+            .sink { [weak self, weak session] previous, current in
+                guard let self else { return }
+                self.reload()
+                // Only a recording that just finished is transcribed unasked; older ones have a button.
+                if case .recording = previous, current == .idle, AppSettings.transcribeRecordings,
+                   let folder = session?.lastSessionFolder,
+                   let recording = self.recordings.first(where: { $0.folder.path == folder.path }) {
+                    self.transcribe(recording)
+                }
+            }
     }
+    private typealias State = RecordingSession.State
 
     func reload() {
         let decoder = JSONDecoder()
@@ -40,9 +57,46 @@ final class RecordingStore: ObservableObject {
         .sorted { $0.startDate > $1.startDate }
 
         // Every recording with a mic track gets its mixdown, without the user asking.
-        for recording in recordings where recording.includesMicrophone && !recording.isCombined && !failed.contains(recording.id) {
+        // Skipped when an audio file is missing (a folder someone tidied by hand): it can never succeed.
+        for recording in recordings where recording.includesMicrophone && !recording.isCombined && !failed.contains(recording.id) && recording.hasAudio {
             combine(recording)
         }
+    }
+
+    /// Queues a recording for transcription; also the retry after a failure.
+    func transcribe(_ recording: Recording) {
+        guard Transcriber.isSupported, !transcriptQueue.contains(recording.id) else { return }
+        transcriptErrors[recording.id] = nil
+        transcriptQueue.append(recording.id)
+        if transcriptQueue.count == 1 { transcribeNext() }
+    }
+
+    private func transcribeNext() {
+        guard #available(macOS 26, *), let id = transcriptQueue.first else { return }
+        guard let recording = recordings.first(where: { $0.id == id }) else {
+            transcriptQueue.removeFirst()  // trashed while it waited
+            return transcribeNext()
+        }
+        let language = AppSettings.transcriptionLanguage
+        let timestamps = AppSettings.transcriptTimestamps
+        Task.detached {
+            var failure: String?
+            do {
+                _ = try await Transcriber.transcribe(folder: recording.folder, metadata: recording.metadata, language: language, timestamps: timestamps)
+            } catch {
+                failure = error.localizedDescription
+            }
+            await MainActor.run { [failure] in
+                self.transcriptQueue.removeAll { $0 == id }
+                self.transcriptErrors[id] = failure
+                self.reload()
+                self.transcribeNext()
+            }
+        }
+    }
+
+    func openTranscript(_ recording: Recording) {
+        NSWorkspace.shared.open(recording.transcriptURL)
     }
 
     func reveal(_ recording: Recording) {

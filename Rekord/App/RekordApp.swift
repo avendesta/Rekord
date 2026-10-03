@@ -29,7 +29,7 @@ struct RekordApp: App {
         Window("Recordings", id: "recordings") {
             RecordingsWindowView(store: store)
         }
-        .defaultSize(width: 440, height: 480)
+        .defaultSize(width: 480, height: 340)
 
         Window("Rekord Settings", id: "settings") {
             SettingsView(hotkey: hotkeyPopup)

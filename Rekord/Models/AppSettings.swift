@@ -27,6 +27,11 @@ enum AppSettings {
     static let hotkeyKey = "hotkey"
     static let inputDeviceUIDKey = "inputDeviceUID"
     static let lastRecordingModeKey = "lastRecordingMode"
+    static let transcribeKey = "transcribeRecordings"
+    /// "yes" or "no": whether the last recording received any system audio (shown in Settings > Privacy).
+    static let systemAudioSeenKey = "systemAudioSeen"
+    static let transcriptionLanguageKey = "transcriptionLanguage"
+    static let transcriptTimestampsKey = "transcriptTimestamps"
 
     static let defaultOutputFolder = FileManager.default
         .homeDirectoryForCurrentUser
@@ -80,6 +85,19 @@ enum AppSettings {
             UserDefaults.standard.set(fresh, forKey: outputFolderBookmarkKey)
         }
         return url
+    }
+
+    static var transcribeRecordings: Bool {
+        UserDefaults.standard.object(forKey: transcribeKey) as? Bool ?? true
+    }
+
+    static var transcriptTimestamps: Bool {
+        UserDefaults.standard.object(forKey: transcriptTimestampsKey) as? Bool ?? true
+    }
+
+    /// Locale identifier chosen for transcription; nil means follow the Mac's language.
+    static var transcriptionLanguage: String? {
+        UserDefaults.standard.string(forKey: transcriptionLanguageKey).flatMap { $0.isEmpty ? nil : $0 }
     }
 
     static var includeMicrophoneDefault: Bool {

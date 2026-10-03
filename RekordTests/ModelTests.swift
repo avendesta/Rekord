@@ -19,6 +19,38 @@ final class HotkeyTests: XCTestCase {
     }
 }
 
+final class RecordingSectionTests: XCTestCase {
+    private var calendar: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        calendar.locale = Locale(identifier: "en_US")
+        return calendar
+    }()
+
+    private func date(_ iso: String) -> Date { ISO8601DateFormatter().date(from: iso)! }
+
+    func testSectionTitles() {
+        let now = date("2026-10-03T12:00:00Z")
+        func title(_ iso: String) -> String { RecordingsWindowView.sectionTitle(for: date(iso), now: now, calendar: calendar) }
+        XCTAssertEqual(title("2026-10-03T00:05:00Z"), "Today")
+        XCTAssertEqual(title("2026-10-02T23:59:00Z"), "Yesterday")
+        XCTAssertEqual(title("2026-09-29T08:00:00Z"), "Sep 29")
+        XCTAssertEqual(title("2025-12-31T08:00:00Z"), "Dec 31, 2025")
+    }
+
+    func testRecordingsAreGroupedByDayInOrder() {
+        let now = date("2026-10-03T12:00:00Z")
+        let recordings = ["2026-10-03T08:00:00Z", "2026-10-03T07:00:00Z", "2026-10-02T22:00:00Z", "2026-09-29T08:00:00Z"].map {
+            Recording(folder: URL(fileURLWithPath: "/tmp/\($0)"), metadata: .init(
+                startDate: date($0), durationSeconds: 1, includeMicrophone: false, files: [],
+                systemSampleRate: 48_000, micSampleRate: nil, micOffsetSeconds: nil))
+        }
+        let sections = RecordingsWindowView.sections(of: recordings, now: now, calendar: calendar)
+        XCTAssertEqual(sections.map(\.title), ["Today", "Yesterday", "Sep 29"])
+        XCTAssertEqual(sections.map(\.recordings.count), [2, 1, 1])
+    }
+}
+
 final class MetadataTests: XCTestCase {
     private func decoder() -> JSONDecoder {
         let decoder = JSONDecoder()
@@ -57,7 +89,7 @@ final class MetadataTests: XCTestCase {
 /// These touch the app's real UserDefaults (the tests run inside the app), so they restore what they change.
 @MainActor
 final class StorageTests: XCTestCase {
-    private let keys = [AppSettings.outputFolderKey, AppSettings.outputFolderBookmarkKey]
+    private let keys = [AppSettings.outputFolderKey, AppSettings.outputFolderBookmarkKey, AppSettings.transcribeKey]
     private var saved: [String: Any] = [:]
     private var root: URL!
 
@@ -66,6 +98,7 @@ final class StorageTests: XCTestCase {
             saved[key] = UserDefaults.standard.object(forKey: key)
             UserDefaults.standard.removeObject(forKey: key)
         }
+        UserDefaults.standard.set(false, forKey: AppSettings.transcribeKey)  // no speech model in these tests
         root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     }
@@ -80,6 +113,13 @@ final class StorageTests: XCTestCase {
     func testOutputFolderDefaultsToDocumentsRekord() {
         XCTAssertEqual(AppSettings.outputFolder, AppSettings.defaultOutputFolder)
         XCTAssertTrue(AppSettings.defaultOutputFolder.path.hasSuffix("Documents/Rekord"))
+    }
+
+    func testFolderIsShownRelativeToHome() {
+        let home = URL(fileURLWithPath: "/Users/someone")
+        XCTAssertEqual(SettingsView.shortPath(URL(fileURLWithPath: "/Users/someone/Documents/Rekord"), home: home), "Documents/Rekord")
+        XCTAssertEqual(SettingsView.shortPath(URL(fileURLWithPath: "/Volumes/Audio/Rekord"), home: home), "/Volumes/Audio/Rekord")
+        XCTAssertEqual(SettingsView.shortPath(URL(fileURLWithPath: "/Users/someone-else/x"), home: home), "/Users/someone-else/x")
     }
 
     func testOutputFolderUsesAStoredPath() {

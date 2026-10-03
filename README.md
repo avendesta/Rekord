@@ -87,7 +87,16 @@ Click a row, press `1` or `2`, or use the arrow keys and Return. Esc cancels. Re
 
 Press the shortcut again during a recording to see the elapsed time and a **Stop** button. The menu bar icon's inner dot is red while recording, or orange if no system audio is arriving (usually a missing permission).
 
-**Find your recordings** under **Recent Recordings** in the menu. From there you can reveal a recording in Finder or move it to the Trash. When a recording includes the microphone, Rekord also mixes both tracks into one file for you, a moment after you stop.
+**Transcripts.** On macOS 26 or later, Rekord writes a `transcript.txt` for each new recording, on your Mac, a little after you stop. Older recordings have a **Transcribe** button in the Recordings list. With the microphone included, lines are labelled **Me** and **Others**:
+
+```
+[00:03] Others: Shall we start with the roadmap?
+[00:07] Me: Yes, I have two updates.
+```
+
+Everyone on the other end of a call is "Others"; Rekord doesn't tell them apart. Pick the language, leave out the timestamps, or turn the automatic part off, in **Settings > Transcription**.
+
+**Find your recordings** under **Recent Recordings** in the menu. From there you can open a recording's transcript, reveal it in Finder or move it to the Trash. When a recording includes the microphone, Rekord also mixes both tracks into one file for you, a moment after you stop.
 
 Each recording is a folder in `~/Documents/Rekord/` (or the folder you chose in Settings), named by start time:
 
@@ -96,6 +105,7 @@ Each recording is a folder in `~/Documents/Rekord/` (or the folder you chose in 
   system.caf      meeting audio
   mic.caf         your microphone (only if it was included)
   combined.caf    both mixed together (made automatically when the mic was included)
+  transcript.txt  what was said, with times (macOS 26 or later)
   session.json    start time, duration, sample rates, mic/system sync offset
 ```
 
@@ -103,12 +113,12 @@ Files are lossless `.caf` audio. If a tool you use doesn't accept `.caf`, conver
 
 ### Settings
 
-Open **Settings…** from the menu to change:
+Open **Settings…** from the menu. It has four tabs:
 
-- **Shortcut**, to any combination that includes ⌘, ⌥ or ⌃.
-- **Microphone**, to pick a specific input device. This only affects Rekord, not your Mac's system input.
-- **Save location** and whether the microphone is on by default.
-- **Launch at login**, so the shortcut always works. The shortcut only works while Rekord is running.
+- **General:** launch at login (the shortcut only works while Rekord is running), the shortcut (any combination that includes ⌘, ⌥ or ⌃) and the save location.
+- **Audio:** which microphone Rekord uses, without changing your Mac's system input, and whether the microphone is on by default.
+- **Transcription:** automatic transcripts, language and timestamps (macOS 26 or later).
+- **Privacy:** the state of the Microphone and System Audio permissions, with links to their System Settings pages. macOS doesn't report the System Audio permission, so Rekord shows whether your last recording received system audio.
 
 ### Tips and troubleshooting
 
@@ -122,7 +132,7 @@ Open **Settings…** from the menu to change:
 
 ### Build
 
-You need macOS 14.4+, Xcode 15.4+, and [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`). The Xcode project is generated from `project.yml` and isn't checked in.
+You need Xcode 26 or later (the app still runs on macOS 14.4+), and [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`). The Xcode project is generated from `project.yml` and isn't checked in.
 
 ```sh
 cp Local.xcconfig.example Local.xcconfig   # put your Apple Developer Team ID in it
@@ -139,13 +149,14 @@ xcodebuild test -project Rekord.xcodeproj -scheme Rekord -destination 'platform=
   CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM=
 ```
 
-The unit tests in `RekordTests/` cover the mixdown (`CombineEngine`), `session.json`, shortcuts, the output folder setting and the recordings list, and CI runs them on every pull request. Because they run inside the app, they read and restore the app's real settings. Core Audio taps need real hardware and real permissions, so capture has no automated tests; test that by recording.
+The unit tests in `RekordTests/` cover the mixdown (`CombineEngine`), transcript layout, `session.json`, shortcuts, the output folder setting and the recordings list, and CI runs them on every pull request. Because they run inside the app, they read and restore the app's real settings. Core Audio taps need real hardware and real permissions, so capture has no automated tests; test that by recording.
 
 ### How it works
 
 - **System audio:** `SystemAudioRecorder` creates a global Core Audio process tap (`AudioHardwareCreateProcessTap`, macOS 14.4+) and pairs it with the default output device in a private aggregate device, then writes the IOProc's buffers to a file. Without the System Audio permission the tap still runs but delivers zeros, so `sawAudio` tracks whether any real signal arrived.
 - **Microphone:** `MicRecorder` taps an `AVAudioEngine` input node, writing on its own queue. It can point that engine at a chosen device without changing the system default.
 - **Session:** `RecordingSession` starts both, records each track's first-buffer host time so `session.json` can store the sync offset, and rolls back on any start failure.
+- **Transcripts:** `Transcriber` runs Apple's `SpeechAnalyzer` (macOS 26+) over each track and `Transcript.render` merges them on the recording's timeline. Older systems skip it.
 - **Combine:** `RecordingStore` mixes every finished mic recording automatically; `CombineEngine` mixes the tracks offline with `AVAudioEngine` manual rendering, padding whichever track started later.
 - **Shortcut:** `HotkeyManager` uses Carbon's `RegisterEventHotKey`, which works globally without Accessibility permission.
 

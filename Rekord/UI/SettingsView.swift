@@ -1,5 +1,7 @@
+import AVFoundation
 import Carbon.HIToolbox
 import ServiceManagement
+import Speech
 import SwiftUI
 
 struct SettingsView: View {
@@ -8,6 +10,10 @@ struct SettingsView: View {
 
     @ObservedObject var hotkey: HotkeyPopupController
     @AppStorage(AppSettings.inputDeviceUIDKey) private var inputDeviceUID = ""
+    @AppStorage(AppSettings.transcribeKey) private var transcribeRecordings = true
+    @AppStorage(AppSettings.transcriptionLanguageKey) private var transcriptionLanguage = ""
+    @AppStorage(AppSettings.transcriptTimestampsKey) private var transcriptTimestamps = true
+    @State private var transcriptionLocales: [Locale] = []
     @State private var inputDevices: [AudioInputDevices.Device] = []
     @State private var capturingShortcut = false
     @State private var shortcutMonitor: Any?
@@ -15,13 +21,41 @@ struct SettingsView: View {
     @State private var needsApproval = false
     @State private var loginError: String?
 
+    @State private var microphoneStatus = AVCaptureDevice.authorizationStatus(for: .audio)
+    @AppStorage(AppSettings.systemAudioSeenKey) private var systemAudioSeen = ""
+
     var body: some View {
+        TabView {
+            general.tabItem { Label("General", systemImage: "gearshape") }
+            audio.tabItem { Label("Audio", systemImage: "mic") }
+            transcription.tabItem { Label("Transcription", systemImage: "text.bubble") }
+            privacy.tabItem { Label("Privacy", systemImage: "lock") }
+        }
+        .formStyle(.grouped)
+        // One size for every tab, so the window doesn't jump when switching.
+        .frame(width: 600, height: 380)
+        .onAppear(perform: refresh)
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in refresh() }
+        .onDisappear { stopCapturing() }
+    }
+
+    private func refresh() {
+        refreshLoginStatus()
+        inputDevices = AudioInputDevices.all()
+        microphoneStatus = AVCaptureDevice.authorizationStatus(for: .audio)
+    }
+
+    private func note(_ text: String) -> some View {
+        Text(text).font(.caption).foregroundStyle(.secondary)
+    }
+
+    // MARK: General
+
+    private var general: some View {
         Form {
-            Section("Startup") {
+            Section {
                 Toggle("Launch at login", isOn: Binding(get: { launchAtLogin }, set: setLaunchAtLogin))
-                Text("Keeps Rekord running in the menu bar so the shortcut works from any app.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                note("Keeps Rekord available from the menu bar.")
                 if needsApproval {
                     Text("Approve Rekord in System Settings > General > Login Items.")
                         .font(.caption)
@@ -29,15 +63,63 @@ struct SettingsView: View {
                     Button("Open Login Items…") { SMAppService.openSystemSettingsLoginItems() }
                 }
                 if let loginError {
-                    Text(loginError)
-                        .font(.caption)
-                        .foregroundStyle(.red)
+                    Text(loginError).font(.caption).foregroundStyle(.red)
                 }
             }
 
+            Section {
+                LabeledContent("Recording shortcut") {
+                    HStack {
+                        Text(capturingShortcut ? "Press new shortcut… (Esc to cancel)" : hotkey.hotkey.display)
+                            .font(capturingShortcut ? .body : .system(.body, design: .monospaced))
+                            .foregroundStyle(capturingShortcut ? .secondary : .primary)
+                        if hotkey.hotkey != .default, !capturingShortcut {
+                            Button("Reset") { hotkey.setHotkey(.default) }
+                        }
+                        Button(capturingShortcut ? "Cancel" : "Change…") {
+                            capturingShortcut ? stopCapturing() : startCapturing()
+                        }
+                    }
+                }
+                if let error = hotkey.registrationError {
+                    Text(error).font(.caption).foregroundStyle(.orange)
+                }
+            }
+
+            Section {
+                LabeledContent("Save recordings to") {
+                    HStack {
+                        Label(Self.shortPath(AppSettings.outputFolder), systemImage: "folder")
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .foregroundStyle(.secondary)
+                            .help(AppSettings.outputFolder.path)
+                        if !outputFolderPath.isEmpty {
+                            Button("Reset") {
+                                AppSettings.setOutputFolder(nil)
+                                outputFolderPath = ""
+                            }
+                        }
+                        Button("Choose…", action: chooseFolder)
+                    }
+                }
+            }
+        }
+    }
+
+    /// A folder inside the home folder is shown from there down, e.g. "Documents/Rekord".
+    static func shortPath(_ url: URL, home: URL = FileManager.default.homeDirectoryForCurrentUser) -> String {
+        let path = url.standardizedFileURL.path, homePath = home.standardizedFileURL.path
+        return path.hasPrefix(homePath + "/") ? String(path.dropFirst(homePath.count + 1)) : path
+    }
+
+    // MARK: Audio
+
+    private var audio: some View {
+        Form {
             Section("Microphone") {
                 Picker("Input device", selection: $inputDeviceUID) {
-                    Text("System default").tag("")
+                    Text("System Default").tag("")
                     ForEach(inputDevices) { device in
                         Text(device.name).tag(device.uid)
                     }
@@ -46,67 +128,81 @@ struct SettingsView: View {
                         Text("Disconnected device (using default)").tag(inputDeviceUID)
                     }
                 }
-                Text("Only affects Rekord; your Mac's system input stays as it is.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Section("Shortcut") {
-                LabeledContent("Start / stop recording") {
-                    Text(hotkey.hotkey.display)
-                        .font(.system(.body, design: .monospaced))
-                }
-                HStack {
-                    Button(capturingShortcut ? "Press new shortcut… (Esc to cancel)" : "Change Shortcut") {
-                        capturingShortcut ? stopCapturing() : startCapturing()
-                    }
-                    Button("Reset to Default") { hotkey.setHotkey(.default) }
-                        .disabled(hotkey.hotkey == .default || capturingShortcut)
-                }
-                if let error = hotkey.registrationError {
-                    Text(error)
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                }
-            }
-
-            Section("Recordings") {
-                LabeledContent("Save to") {
-                    Text(AppSettings.outputFolder.path)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-                HStack {
-                    Button("Choose Folder…", action: chooseFolder)
-                    Button("Reset to Default") {
-                        AppSettings.setOutputFolder(nil)
-                        outputFolderPath = ""
-                    }
-                        .disabled(outputFolderPath.isEmpty)
-                }
+                note("Used only by Rekord.")
                 Toggle("Include microphone by default", isOn: $includeMicrophoneDefault)
-                Text("Applies from the next launch to the menu's Include microphone toggle.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                note("Default for new recordings.")
             }
+        }
+    }
 
-            Section("Permissions") {
-                HStack {
-                    Button("Microphone Settings…") { PermissionsManager.openSettings(for: .microphone) }
-                    Button("System Audio Settings…") { PermissionsManager.openSettings(for: .systemAudio) }
+    // MARK: Transcription
+
+    @ViewBuilder
+    private var transcription: some View {
+        if Transcriber.isSupported {
+            Form {
+                Section {
+                    Toggle("Transcribe new recordings automatically", isOn: $transcribeRecordings)
+                    Picker("Language", selection: $transcriptionLanguage) {
+                        Text("Same as this Mac").tag("")
+                        ForEach(transcriptionLocales, id: \.identifier) { locale in
+                            Text(Locale.current.localizedString(forIdentifier: locale.identifier) ?? locale.identifier)
+                                .tag(locale.identifier)
+                        }
+                    }
+                    Toggle("Show timestamps in transcripts", isOn: $transcriptTimestamps)
+                }
+                Section {
+                    note("Transcription is performed entirely on this Mac. Audio is never uploaded.\nTranscripts are saved alongside the recording.")
                 }
             }
+            .task {
+                if #available(macOS 26, *) {
+                    transcriptionLocales = await SpeechTranscriber.supportedLocales.sorted {
+                        (Locale.current.localizedString(forIdentifier: $0.identifier) ?? "")
+                            < (Locale.current.localizedString(forIdentifier: $1.identifier) ?? "")
+                    }
+                }
+            }
+        } else {
+            ContentUnavailableView("Transcription Needs macOS 26", systemImage: "text.bubble",
+                                   description: Text("Update macOS to have Rekord transcribe your recordings."))
         }
-        .formStyle(.grouped)
-        .onAppear {
-            refreshLoginStatus()
-            inputDevices = AudioInputDevices.all()
+    }
+
+    // MARK: Privacy
+
+    private var privacy: some View {
+        Form {
+            Section("Permissions") {
+                LabeledContent("Microphone") {
+                    switch microphoneStatus {
+                    case .authorized: status("Allowed", "checkmark.circle.fill", .green)
+                    case .notDetermined: status("Not Asked Yet", "questionmark.circle", .secondary)
+                    default: status("Not Allowed", "xmark.circle", .secondary)
+                    }
+                }
+                Button("Open Microphone Settings…") { PermissionsManager.openSettings(for: .microphone) }
+
+                // macOS has no way to ask whether System Audio Recording is allowed, so this reports
+                // what the last recording actually received.
+                LabeledContent("System Audio") {
+                    switch systemAudioSeen {
+                    case "yes": status("Allowed", "checkmark.circle.fill", .green)
+                    case "no": status("No Audio in Last Recording", "exclamationmark.circle", .orange)
+                    default: status("Not Checked Yet", "questionmark.circle", .secondary)
+                    }
+                }
+                .help("macOS doesn't report this permission, so Rekord goes by whether the last recording received system audio.")
+                Button("Open System Audio Settings…") { PermissionsManager.openSettings(for: .systemAudio) }
+            }
         }
-        .onDisappear { stopCapturing() }
-        .frame(width: 440)
-        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func status(_ text: String, _ symbol: String, _ color: Color) -> some View {
+        Label(text, systemImage: symbol)
+            .labelStyle(.titleAndIcon)
+            .foregroundStyle(color == .secondary ? AnyShapeStyle(.secondary) : AnyShapeStyle(color))
     }
 
     private func startCapturing() {
