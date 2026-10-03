@@ -38,7 +38,7 @@ final class RecordingStore: ObservableObject {
                 self.reload()
                 // Only a recording that just finished is transcribed and compressed unasked; older
                 // ones have a button for each.
-                if case .recording = previous, current == .idle,
+                if previous != .idle, previous != .starting, current == .idle,
                    let folder = session?.lastSessionFolder,
                    let recording = self.recordings.first(where: { $0.folder.path == folder.path }) {
                     if AppSettings.compressRecordings { self.pendingCompression.insert(recording.id) }

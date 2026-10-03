@@ -11,7 +11,10 @@ final class RecordingSession: ObservableObject {
         case idle
         /// Waiting on the microphone permission prompt.
         case starting
+        /// `since` is the moment the timer counts from: the start, moved later by any paused time.
         case recording(since: Date)
+        /// Still the same recording; `recorded` is how much has been captured so far.
+        case paused(recorded: TimeInterval)
     }
 
     struct Metadata: Codable {
@@ -28,8 +31,16 @@ final class RecordingSession: ObservableObject {
 
     @Published private(set) var state: State = .idle
 
+    /// True from start to stop, including while paused.
     var isRecording: Bool {
-        if case .recording = state { return true }
+        switch state {
+        case .recording, .paused: return true
+        case .idle, .starting: return false
+        }
+    }
+
+    var isPaused: Bool {
+        if case .paused = state { return true }
         return false
     }
     @Published private(set) var lastError: String?
@@ -54,6 +65,8 @@ final class RecordingSession: ObservableObject {
     private let systemRecorder = SystemAudioRecorder()
     private let micRecorder = MicRecorder()
     private var activeIncludesMic = false
+    private var startedAt = Date()
+    private let pauseGate = PauseGate()
     private(set) var lastSessionFolder: URL?
 
     /// `includeMicrophone` overrides the menu toggle for this one recording (used by the hotkey popup).
@@ -98,6 +111,9 @@ final class RecordingSession: ObservableObject {
             return
         }
 
+        pauseGate.reset()
+        systemRecorder.pauseGate = pauseGate
+        micRecorder.pauseGate = pauseGate
         do {
             try systemRecorder.start(to: folder.appendingPathComponent("system.caf"))
             if includeMic {
@@ -118,15 +134,36 @@ final class RecordingSession: ObservableObject {
         lastSessionFolder = folder
         lastError = nil
         permissionIssue = nil
-        state = .recording(since: Date())
+        startedAt = Date()
+        state = .recording(since: startedAt)
         startSilenceMonitor()
         #if DEBUG
         print("[Rekord] Recording started in \(folder.path) (mic: \(includeMic))")
         #endif
     }
 
-    func stop() {
+    /// Keeps the recording open but leaves out everything until `resume()`. Both tracks skip
+    /// exactly the same stretch, so they stay in step and the result is still one recording.
+    func pause() {
         guard case .recording(let since) = state else { return }
+        pauseGate.pause()
+        systemSilenceWarning = false
+        state = .paused(recorded: Date().timeIntervalSince(since))
+    }
+
+    func resume() {
+        guard case .paused(let recorded) = state else { return }
+        pauseGate.resume()
+        state = .recording(since: Date().addingTimeInterval(-recorded))
+    }
+
+    func stop() {
+        let recorded: TimeInterval
+        switch state {
+        case .recording(let since): recorded = Date().timeIntervalSince(since)
+        case .paused(let soFar): recorded = soFar
+        case .idle, .starting: return
+        }
         silenceMonitor?.cancel()
         systemSilenceWarning = false
         UserDefaults.standard.set(systemRecorder.sawAudio ? "yes" : "no", forKey: AppSettings.systemAudioSeenKey)
@@ -137,8 +174,8 @@ final class RecordingSession: ObservableObject {
         guard let folder = lastSessionFolder else { return }
         let files = ["system.caf"] + (activeIncludesMic ? ["mic.caf"] : [])
         let metadata = Metadata(
-            startDate: since,
-            durationSeconds: Date().timeIntervalSince(since),
+            startDate: startedAt,
+            durationSeconds: recorded,  // paused time is not part of the recording
             includeMicrophone: activeIncludesMic,
             files: files,
             systemSampleRate: systemRecorder.sampleRate,
@@ -166,7 +203,7 @@ final class RecordingSession: ObservableObject {
             try? await Task.sleep(for: .seconds(Self.silenceGraceSeconds))
             while !Task.isCancelled {
                 guard let self else { return }
-                self.systemSilenceWarning = !self.systemRecorder.sawAudio
+                self.systemSilenceWarning = !self.isPaused && !self.systemRecorder.sawAudio
                 try? await Task.sleep(for: .seconds(1))
             }
         }

@@ -62,18 +62,40 @@ struct MenuBarView: View {
         micName = AudioInputDevices.currentInputName()
     }
 
+    @ViewBuilder
     private var primaryButton: some View {
-        Button {
-            session.isRecording ? session.stop() : session.start()
-        } label: {
-            Label(session.isRecording ? "Stop Recording" : "Start Recording",
-                  systemImage: session.isRecording ? "stop.circle.fill" : "record.circle")
-                .frame(maxWidth: .infinity)
+        if session.isRecording {
+            // Pause is the lesser action; Stop stays the obvious way to finish.
+            HStack(spacing: 8) {
+                Button {
+                    session.isPaused ? session.resume() : session.pause()
+                } label: {
+                    Label(session.isPaused ? "Resume" : "Pause", systemImage: session.isPaused ? "play.fill" : "pause.fill")
+                        .frame(width: 78)  // one width for both words, so the buttons don't shift
+                }
+                .buttonStyle(.bordered)
+                Button {
+                    session.stop()
+                } label: {
+                    Label("Stop Recording", systemImage: "stop.circle.fill")
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.red)
+            }
+            .controlSize(.large)
+        } else {
+            Button {
+                session.start()
+            } label: {
+                Label("Start Recording", systemImage: "record.circle")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .disabled(session.state == .starting)
         }
-        .buttonStyle(.borderedProminent)
-        .controlSize(.large)
-        .tint(session.isRecording ? .red : .accentColor)
-        .disabled(session.state == .starting)
     }
 
     private var microphoneRow: some View {
@@ -128,6 +150,8 @@ private struct StatusView: View {
                     status("circle.fill", String(format: "Recording · %02d:%02d", seconds / 60, seconds % 60), tint: .red)
                 }
             }
+        case .paused(let recorded):
+            status("pause.circle.fill", String(format: "Paused · %02d:%02d", Int(recorded) / 60, Int(recorded) % 60), tint: .orange)
         case .idle:
             if let issue = session.permissionIssue {
                 warning(issue == .microphone ? "Microphone permission required" : "System Audio Recording permission required",

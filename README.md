@@ -85,7 +85,7 @@ If a recording's system audio comes out silent, the second permission is missing
 
 Click a row, press `1` or `2`, or use the arrow keys and Return. Esc cancels. Rekord remembers your last choice, so **⇧⌘9** then **Return** repeats it.
 
-Press the shortcut again during a recording to see the elapsed time and a **Stop** button. The menu bar icon's inner dot is red while recording, or orange if no system audio is arriving (usually a missing permission).
+Press the shortcut again during a recording to see the elapsed time, with **Pause** (or **P**) and **Stop**. Pausing leaves out everything until you resume; it is still one recording, and the timer counts recorded time only. The menu has the same Pause and Stop buttons. The menu bar icon shows pause bars while paused. Its inner dot is red while recording, or orange if no system audio is arriving (usually a missing permission).
 
 **Transcripts.** On macOS 26 or later, Rekord writes a `transcript.txt` for each new recording, on your Mac, a little after you stop. Older recordings have a **Transcribe** button in the Recordings list. With the microphone included, lines are labelled **Me** and **Others**:
 
@@ -155,6 +155,7 @@ The unit tests in `RekordTests/` cover the mixdown (`CombineEngine`), transcript
 
 - **System audio:** `SystemAudioRecorder` creates a global Core Audio process tap (`AudioHardwareCreateProcessTap`, macOS 14.4+) and pairs it with the default output device in a private aggregate device, then writes the IOProc's buffers to a file. Without the System Audio permission the tap still runs but delivers zeros, so `sawAudio` tracks whether any real signal arrived.
 - **Microphone:** `MicRecorder` taps an `AVAudioEngine` input node, writing on its own queue. It can point that engine at a chosen device without changing the system default.
+- **Pause:** `PauseGate` holds the paused stretches as host times; both recorders cut their buffers at exactly those moments, so the tracks stay in step.
 - **Session:** `RecordingSession` starts both, records each track's first-buffer host time so `session.json` can store the sync offset, and rolls back on any start failure.
 - **Transcripts:** `Transcriber` runs Apple's `SpeechAnalyzer` (macOS 26+) over each track and `Transcript.render` merges them on the recording's timeline. Older systems skip it.
 - **Compression:** once the mix and transcript are done, `AudioCompressor` converts each CAF to M4A, checks the result has exactly the same length, and only then deletes the original. `Track` finds a recording's files in either format.
