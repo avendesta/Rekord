@@ -2,6 +2,9 @@
 
 Each release's notes come from its `## <version>` section here, so add one before bumping `MARKETING_VERSION`.
 
+## 1.2.1
+- New setting, **Include microphone in transcripts** (Settings > Transcription, on by default). Turn it off to transcribe only the meeting audio, which avoids repeated lines when your microphone picks up the meeting from the speakers.
+
 ## 1.2.0
 - **Playback.** Each recording in the Recordings window has a play button. The recording you're listening to shows the elapsed time and a scrubber to jump around.
 - **Quicker delete.** The trash icon now moves a recording to the Trash straight away and shows an Undo message for a few seconds (⌘Z works too).

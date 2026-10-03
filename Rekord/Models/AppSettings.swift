@@ -32,6 +32,7 @@ enum AppSettings {
     static let systemAudioSeenKey = "systemAudioSeen"
     static let transcriptionLanguageKey = "transcriptionLanguage"
     static let transcriptTimestampsKey = "transcriptTimestamps"
+    static let transcriptIncludesMicrophoneKey = "transcriptIncludesMicrophone"
 
     static let defaultOutputFolder = FileManager.default
         .homeDirectoryForCurrentUser
@@ -93,6 +94,11 @@ enum AppSettings {
 
     static var transcriptTimestamps: Bool {
         UserDefaults.standard.object(forKey: transcriptTimestampsKey) as? Bool ?? true
+    }
+
+    /// Off transcribes only the system track, for when the mic picks up the meeting from the speakers.
+    static var transcriptIncludesMicrophone: Bool {
+        UserDefaults.standard.object(forKey: transcriptIncludesMicrophoneKey) as? Bool ?? true
     }
 
     /// Locale identifier chosen for transcription; nil means follow the Mac's language.

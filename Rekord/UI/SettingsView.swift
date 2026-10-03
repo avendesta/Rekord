@@ -13,6 +13,7 @@ struct SettingsView: View {
     @AppStorage(AppSettings.transcribeKey) private var transcribeRecordings = true
     @AppStorage(AppSettings.transcriptionLanguageKey) private var transcriptionLanguage = ""
     @AppStorage(AppSettings.transcriptTimestampsKey) private var transcriptTimestamps = true
+    @AppStorage(AppSettings.transcriptIncludesMicrophoneKey) private var transcriptIncludesMicrophone = true
     @State private var transcriptionLocales: [Locale] = []
     @State private var inputDevices: [AudioInputDevices.Device] = []
     @State private var capturingShortcut = false
@@ -151,6 +152,8 @@ struct SettingsView: View {
                         }
                     }
                     Toggle("Show timestamps in transcripts", isOn: $transcriptTimestamps)
+                    Toggle("Include microphone in transcripts", isOn: $transcriptIncludesMicrophone)
+                    note("Turn off if your microphone picks up the meeting audio.")
                 }
                 Section {
                     note("Transcription is performed entirely on this Mac. Audio is never uploaded.\nTranscripts are saved alongside the recording.")

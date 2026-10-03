@@ -79,10 +79,12 @@ final class RecordingStore: ObservableObject {
         }
         let language = AppSettings.transcriptionLanguage
         let timestamps = AppSettings.transcriptTimestamps
+        let includeMicrophone = AppSettings.transcriptIncludesMicrophone
         Task.detached {
             var failure: String?
             do {
-                _ = try await Transcriber.transcribe(folder: recording.folder, metadata: recording.metadata, language: language, timestamps: timestamps)
+                _ = try await Transcriber.transcribe(folder: recording.folder, metadata: recording.metadata, language: language, timestamps: timestamps,
+                                                     includeMicrophone: includeMicrophone)
             } catch {
                 failure = error.localizedDescription
             }
