@@ -287,6 +287,24 @@ final class StorageTests: XCTestCase {
         XCTAssertTrue(store.compressible.isEmpty)
     }
 
+    func testCopiedTranscriptSaysWhatItIs() throws {
+        func make(_ folder: String, name: String?, seconds: Double) throws -> Recording {
+            let url = root.appendingPathComponent(folder, isDirectory: true)
+            try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+            try Data("[00:03] Others: Shall we start?\n".utf8).write(to: url.appendingPathComponent("transcript.txt"))
+            return Recording(folder: url, metadata: .init(
+                startDate: Date(timeIntervalSince1970: 1_790_000_000), durationSeconds: seconds, includeMicrophone: true,
+                files: [], systemSampleRate: 48_000, micSampleRate: nil, micOffsetSeconds: nil, name: name))
+        }
+        let locale = Locale(identifier: "en_US"), utc = TimeZone(identifier: "UTC")!
+
+        XCTAssertEqual(try make("a", name: "Weekly planning", seconds: 754).transcriptForSharing(locale: locale, timeZone: utc),
+                       "Weekly planning\nRecorded Sep 21, 2026 at 2:13\u{202F}PM · 12:34\n\n[00:03] Others: Shall we start?\n")
+        XCTAssertEqual(try make("b", name: nil, seconds: 3725).transcriptForSharing(locale: locale, timeZone: utc),
+                       "Recorded Sep 21, 2026 at 2:13\u{202F}PM · 1:02:05\n\n[00:03] Others: Shall we start?\n")
+        XCTAssertNil(Recording(folder: root.appendingPathComponent("none"), metadata: try make("c", name: nil, seconds: 1).metadata).transcriptForSharing())
+    }
+
     func testRenamingChangesOnlyTheDisplayName() throws {
         try writeSession("2026-09-20_10-00-00", start: "2026-09-20T10:00:00Z", in: root)
         UserDefaults.standard.set(root.path, forKey: AppSettings.outputFolderKey)
