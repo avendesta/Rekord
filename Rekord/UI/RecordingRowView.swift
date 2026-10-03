@@ -43,8 +43,7 @@ struct RecordingRowView: View {
             }
             // A fixed column, so the states sit in the same place on every row.
             transcriptControl
-                .controlSize(.small)
-                .frame(width: 112, alignment: .trailing)
+                .frame(width: 124, alignment: .trailing)
             // File management stays out of the way until the row is pointed at or selected.
             HStack(spacing: 6) {
                 Button(action: onReveal) { Label("Reveal in Finder", systemImage: "folder") }
