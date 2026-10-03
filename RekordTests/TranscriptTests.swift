@@ -11,7 +11,9 @@ final class TranscriptTests: XCTestCase {
             mic: [seg(7, "Yes, two updates.")])
         XCTAssertEqual(text, """
         [00:03] Others: Shall we start?
+
         [00:07] Me: Yes, two updates.
+
         [01:10] Others: Good.
 
         """)
@@ -19,12 +21,12 @@ final class TranscriptTests: XCTestCase {
 
     func testLateMicShiftsMicLines() {
         let text = Transcript.render(system: [seg(4, "A")], mic: [seg(3, "B")], micOffset: 2)
-        XCTAssertEqual(text, "[00:04] Others: A\n[00:05] Me: B\n")
+        XCTAssertEqual(text, "[00:04] Others: A\n\n[00:05] Me: B\n")
     }
 
     func testEarlyMicShiftsSystemLines() {
         let text = Transcript.render(system: [seg(3, "A")], mic: [seg(4, "B")], micOffset: -2)
-        XCTAssertEqual(text, "[00:04] Me: B\n[00:05] Others: A\n")
+        XCTAssertEqual(text, "[00:04] Me: B\n\n[00:05] Others: A\n")
     }
 
     func testSystemOnlyRecordingHasNoSpeakerLabels() {
@@ -90,21 +92,46 @@ final class TranscriptTests: XCTestCase {
     func testRenderLeavesEchoesOutButKeepsTheLabels() {
         let text = Transcript.render(system: [seg(3, 6, "Shall we start with the roadmap?")],
                                      mic: [seg(3.1, 6, "Shall we start with the roadmap?"), seg(7, 9, "Yes, I have two updates.")])
-        XCTAssertEqual(text, "[00:03] Others: Shall we start with the roadmap?\n[00:07] Me: Yes, I have two updates.\n")
+        XCTAssertEqual(text, "[00:03] Others: Shall we start with the roadmap?\n\n[00:07] Me: Yes, I have two updates.\n")
+    }
+
+    // MARK: Paragraphs
+
+    func testOnePersonTalkingBecomesOneParagraph() {
+        let text = Transcript.render(system: [seg(9, 14.9, "First sentence."), seg(14.9, 18.4, "Second sentence."), seg(18.4, 23, "Third.")],
+                                     mic: [seg(24.4, 26, "Are you okay?")])
+        XCTAssertEqual(text, "[00:09] Others: First sentence. Second sentence. Third.\n\n[00:24] Me: Are you okay?\n")
+    }
+
+    func testAPauseStartsANewParagraph() {
+        let text = Transcript.render(system: [seg(0, 2, "Before the pause."), seg(4.9, 6, "Still the same thought."), seg(9.5, 11, "After it.")], mic: nil)
+        XCTAssertEqual(text, "[00:00] Before the pause. Still the same thought.\n\n[00:09] After it.\n")
+    }
+
+    func testALongMonologueIsBrokenUp() {
+        let sentences = (0..<30).map { seg(Double($0) * 5, Double($0) * 5 + 4.5, "Sentence \($0).") }  // 150 s without a pause
+        let paragraphs = Transcript.render(system: sentences, mic: nil).components(separatedBy: "\n\n")
+        XCTAssertEqual(paragraphs.count, 3)
+        XCTAssertTrue(paragraphs[1].hasPrefix("[01:00] Sentence 12."))
+    }
+
+    func testAnInterruptionSplitsTheParagraphAroundIt() {
+        let text = Transcript.render(system: [seg(0, 3, "As I was saying,"), seg(5, 8, "the plan is ready.")], mic: [seg(3.2, 4.5, "Sorry, one second.")])
+        XCTAssertEqual(text, "[00:00] Others: As I was saying,\n\n[00:03] Me: Sorry, one second.\n\n[00:05] Others: the plan is ready.\n")
     }
 
     func testTimestampsCanBeLeftOut() {
         let text = Transcript.render(system: [seg(3, "A")], mic: [seg(7, "B")], timestamps: false)
-        XCTAssertEqual(text, "Others: A\nMe: B\n")
+        XCTAssertEqual(text, "Others: A\n\nMe: B\n")
     }
 
     func testLongRecordingsShowHours() {
         let text = Transcript.render(system: [seg(5, "A"), seg(3725, "B")], mic: nil)
-        XCTAssertEqual(text, "[0:00:05] A\n[1:02:05] B\n")
+        XCTAssertEqual(text, "[0:00:05] A\n\n[1:02:05] B\n")
     }
 
     func testSameTimeKeepsOthersBeforeMe() {
-        XCTAssertEqual(Transcript.render(system: [seg(1, "A")], mic: [seg(1, "B")]), "[00:01] Others: A\n[00:01] Me: B\n")
+        XCTAssertEqual(Transcript.render(system: [seg(1, "A")], mic: [seg(1, "B")]), "[00:01] Others: A\n\n[00:01] Me: B\n")
     }
 }
 

@@ -17,20 +17,43 @@ enum Transcript {
     /// `session.json`: positive means the mic started later, so its times shift forward.
     static func render(system: [TranscriptSegment], mic: [TranscriptSegment]?, micOffset: Double = 0, timestamps: Bool = true) -> String {
         let mic = mic.map { withoutEcho(mic: $0, system: system, micOffset: micOffset) }
-        var lines: [(time: Double, text: String)] = []
+        typealias Line = (time: Double, end: Double, speaker: String?, text: String)
+        var lines: [Line] = []
         for segment in system {
-            lines.append((segment.start + max(0, -micOffset), mic == nil ? segment.text : "Others: " + segment.text))
+            let shift = max(0, -micOffset)
+            lines.append((segment.start + shift, (segment.end ?? segment.start) + shift, mic == nil ? nil : "Others", segment.text))
         }
         for segment in mic ?? [] {
-            lines.append((segment.start + max(0, micOffset), "Me: " + segment.text))
+            let shift = max(0, micOffset)
+            lines.append((segment.start + shift, (segment.end ?? segment.start) + shift, "Me", segment.text))
         }
         guard !lines.isEmpty else { return noSpeech + "\n" }
-        let long = lines.contains { $0.time >= 3600 }
-        return lines.enumerated()
+        let sorted = lines.enumerated()
             .sorted { ($0.element.time, $0.offset) < ($1.element.time, $1.offset) }  // stable on ties
-            .map { (timestamps ? "[\(timestamp($0.element.time, hours: long))] " : "") + $0.element.text + "\n" }
-            .joined()
+            .map(\.element)
+
+        // One paragraph per stretch of one person talking: it reads as prose and is shorter to
+        // paste. A new one starts when the speaker changes, after a pause, or when it gets long.
+        var paragraphs: [Line] = []
+        for line in sorted {
+            if let last = paragraphs.last, last.speaker == line.speaker,
+               line.time - last.end <= paragraphPause, line.time - last.time < paragraphLength {
+                paragraphs[paragraphs.count - 1].text += " " + line.text
+                paragraphs[paragraphs.count - 1].end = max(last.end, line.end)
+            } else {
+                paragraphs.append(line)
+            }
+        }
+        let long = paragraphs.contains { $0.time >= 3600 }
+        return paragraphs.map {
+            (timestamps ? "[\(timestamp($0.time, hours: long))] " : "") + ($0.speaker.map { $0 + ": " } ?? "") + $0.text
+        }.joined(separator: "\n\n") + "\n"
     }
+
+    /// A silence longer than this, in seconds, starts a new paragraph.
+    static let paragraphPause = 3.0
+    /// A paragraph that has run this long, in seconds, is closed at the next sentence.
+    static let paragraphLength = 60.0
 
     /// Drops the microphone segments that are only the meeting coming out of the speakers.
     ///
