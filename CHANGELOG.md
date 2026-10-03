@@ -2,6 +2,9 @@
 
 Each release's notes come from its `## <version>` section here, so add one before bumping `MARKETING_VERSION`.
 
+## 1.0.2
+- The menu bar icon's dot turns orange instead of red while a recording is receiving no system audio, which usually means the System Audio Recording permission is missing. It turns red as soon as audio arrives.
+
 ## 1.0.1
 - Recordings that include the microphone are now mixed into `combined.caf` automatically, a moment after you stop. The Combine button is gone. Older recordings that were never combined are mixed the next time Rekord lists them.
 - Each microphone recording therefore takes roughly twice the disk space it did before.
