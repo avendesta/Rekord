@@ -35,12 +35,10 @@ enum AudioCompressor {
         for track in Track.allCases where holdsAudio(track.original(in: folder)) {
             try compress(track.original(in: folder))
         }
-        var metadata = metadata
+        // Read again: the recording may have been renamed while its audio was being converted.
+        var metadata = (try? RecordingSession.Metadata.read(from: folder)) ?? metadata
         metadata.files = Track.allCases.compactMap { $0.url(in: folder)?.lastPathComponent }
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        try encoder.encode(metadata).write(to: folder.appendingPathComponent("session.json"))
+        try metadata.write(to: folder)
     }
 
     /// The original is only removed once the M4A has been read back at exactly the same length.

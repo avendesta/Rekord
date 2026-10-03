@@ -27,6 +27,22 @@ final class RecordingSession: ObservableObject {
         /// Seconds the mic's first buffer arrived after the system tap's first
         /// buffer (negative = mic started earlier). Used by Combine to align tracks.
         var micOffsetSeconds: Double?
+        /// A name the user gave the recording. Display only: files and folders keep their names.
+        var name: String? = nil
+
+        /// The recording's `session.json`.
+        static func read(from folder: URL) throws -> Metadata {
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            return try decoder.decode(Metadata.self, from: Data(contentsOf: folder.appendingPathComponent("session.json")))
+        }
+
+        func write(to folder: URL) throws {
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            try encoder.encode(self).write(to: folder.appendingPathComponent("session.json"), options: .atomic)
+        }
     }
 
     @Published private(set) var state: State = .idle
@@ -183,10 +199,7 @@ final class RecordingSession: ObservableObject {
             micOffsetSeconds: micOffset()
         )
         do {
-            let encoder = JSONEncoder()
-            encoder.dateEncodingStrategy = .iso8601
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            try encoder.encode(metadata).write(to: folder.appendingPathComponent("session.json"))
+            try metadata.write(to: folder)
         } catch {
             lastError = "Recording saved, but session.json failed: \(error.localizedDescription)"
         }

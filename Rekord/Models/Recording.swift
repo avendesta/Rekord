@@ -7,6 +7,7 @@ struct Recording: Identifiable {
 
     var id: URL { folder }
     var startDate: Date { metadata.startDate }
+    var name: String? { metadata.name }
     var duration: TimeInterval { metadata.durationSeconds }
     var includesMicrophone: Bool { metadata.includeMicrophone }
     var isCombined: Bool { Track.combined.url(in: folder) != nil }

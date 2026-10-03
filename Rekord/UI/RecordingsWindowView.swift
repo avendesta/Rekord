@@ -8,9 +8,6 @@ struct RecordingsWindowView: View {
     @State private var undoable: [RecordingStore.Trashed] = []
     @State private var undoTimeout: Task<Void, Never>?
 
-    /// A short list reads fine as it is; day headers only earn their space once it grows.
-    static let groupingThreshold = 8
-
     var body: some View {
         VStack(spacing: 0) {
             if let error = store.combineError {
@@ -24,13 +21,10 @@ struct RecordingsWindowView: View {
                 }
             } else {
                 List {
-                    if store.recordings.count < Self.groupingThreshold {
-                        ForEach(store.recordings) { row($0, showsDate: true) }
-                    } else {
-                        ForEach(Self.sections(of: store.recordings), id: \.title) { section in
-                            Section(section.title) {
-                                ForEach(section.recordings) { row($0, showsDate: false) }
-                            }
+                    // Always grouped by day: the header carries the date, so rows only need the time.
+                    ForEach(Self.sections(of: store.recordings), id: \.title) { section in
+                        Section(section.title) {
+                            ForEach(section.recordings) { row($0) }
                         }
                     }
                 }
@@ -95,10 +89,9 @@ struct RecordingsWindowView: View {
     }
 
 
-    private func row(_ recording: Recording, showsDate: Bool) -> some View {
+    private func row(_ recording: Recording) -> some View {
         RecordingRowView(
             recording: recording,
-            showsDate: showsDate,
             playback: playbackState(of: recording),
             player: player,
             onTogglePlay: { withAnimation(.easeInOut(duration: 0.15)) { player.toggle(recording) } },
@@ -107,6 +100,7 @@ struct RecordingsWindowView: View {
             transcript: transcriptState(of: recording),
             onTranscribe: { store.transcribe(recording) },
             onOpenTranscript: { store.openTranscript(recording) },
+            onRename: { store.rename(recording, to: $0) },
             onReveal: { store.reveal(recording) },
             onDelete: { trash(recording) }
         )

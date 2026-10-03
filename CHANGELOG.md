@@ -2,6 +2,10 @@
 
 Each release's notes come from its `## <version>` section here, so add one before bumping `MARKETING_VERSION`.
 
+## 1.5.0
+- **Name your recordings.** Double-click a recording's time (or choose Rename… from the right-click menu) and type a name. It is only a label inside Rekord: files and folders keep their names. Clear the name to go back to the time.
+- **Simpler rows.** Recordings are always grouped by day, so a row shows just the time (or name), the length, and a microphone symbol when the microphone was included.
+
 ## 1.4.0
 - **Pause and resume.** While recording, the menu shows **Pause** next to **Stop Recording**; paused time is left out, and you still get one recording. The timer shows the recorded time only, and the menu bar icon shows pause bars. In the shortcut popup, press **P**.
 

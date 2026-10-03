@@ -2,8 +2,6 @@ import SwiftUI
 
 struct RecordingRowView: View {
     let recording: Recording
-    /// In a date section the day is in the header, so the row shows only the time.
-    var showsDate = true
     var playback: PlaybackState = .idle
     /// Only read by the scrubber of the row being played.
     var player: PlaybackController?
@@ -14,6 +12,7 @@ struct RecordingRowView: View {
     var transcript: TranscriptState?
     var onTranscribe: () -> Void = {}
     var onOpenTranscript: () -> Void = {}
+    var onRename: (String) -> Void = { _ in }
     let onReveal: () -> Void
     /// Not confirmed: the window offers Undo.
     let onDelete: () -> Void
@@ -28,6 +27,9 @@ struct RecordingRowView: View {
     }
 
     @State private var isHovered = false
+    @State private var isRenaming = false
+    @State private var draftName = ""
+    @FocusState private var nameFieldFocused: Bool
 
     /// Actions appear only for the row being pointed at.
     private var isActive: Bool { isHovered }
@@ -36,12 +38,21 @@ struct RecordingRowView: View {
         HStack(alignment: .top, spacing: 10) {
             playButton
             VStack(alignment: .leading, spacing: 2) {
-                Text(showsDate
-                     ? recording.startDate.formatted(date: .abbreviated, time: .shortened)
-                     : recording.startDate.formatted(date: .omitted, time: .shortened))
-                Text("\(duration) · \(recording.includesMicrophone ? "System + Microphone" : "System Audio")")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                title
+                // The day is in the section header and every recording has system audio, so the
+                // line only says what varies: the time (when a name took its place), length, and mic.
+                HStack(spacing: 4) {
+                    Text((recording.name == nil ? "" : "\(time) · ") + duration)
+                    if recording.includesMicrophone {
+                        Text("·")
+                        Image(systemName: "mic.fill")
+                            .imageScale(.small)
+                            .tooltip("Microphone included")
+                            .accessibilityLabel("Microphone included")
+                    }
+                }
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
                 // Only the recording being listened to grows a scrubber; every other row stays compact.
                 if playback == .playing || playback == .paused, let player {
                     PlaybackBar(player: player, clock: player.clock)
@@ -86,10 +97,45 @@ struct RecordingRowView: View {
             case .notStarted?, .failed?: Button("Transcribe", action: onTranscribe)
             default: EmptyView()
             }
+            Button("Rename…", action: beginRenaming)
             Button("Reveal in Finder", action: onReveal)
             Divider()
             Button("Move to Trash", role: .destructive, action: onDelete)
         }
+    }
+
+    /// The name, or the time when there is none; double-click (or Rename… in the menu) edits it in place.
+    @ViewBuilder
+    private var title: some View {
+        if isRenaming {
+            TextField("Name", text: $draftName)
+                .textFieldStyle(.plain)
+                .focused($nameFieldFocused)
+                .onSubmit { finishRenaming(save: true) }
+                .onExitCommand { finishRenaming(save: false) }
+                // Clicking elsewhere takes the focus away, which saves.
+                .onChange(of: nameFieldFocused) { if !nameFieldFocused { finishRenaming(save: true) } }
+        } else {
+            Text(recording.name ?? time)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .onTapGesture(count: 2, perform: beginRenaming)
+        }
+    }
+
+    private var time: String { recording.startDate.formatted(date: .omitted, time: .shortened) }
+
+    private func beginRenaming() {
+        draftName = recording.name ?? ""
+        isRenaming = true
+        // Focused a turn later, once the field exists; AppKit then selects its text.
+        DispatchQueue.main.async { nameFieldFocused = true }
+    }
+
+    private func finishRenaming(save: Bool) {
+        guard isRenaming else { return }
+        isRenaming = false
+        if save, draftName.trimmingCharacters(in: .whitespacesAndNewlines) != (recording.name ?? "") { onRename(draftName) }
     }
 
     private var playButton: some View {

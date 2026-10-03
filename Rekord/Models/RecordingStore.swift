@@ -50,16 +50,12 @@ final class RecordingStore: ObservableObject {
     private typealias State = RecordingSession.State
 
     func reload() {
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
         let folders = (try? FileManager.default.contentsOfDirectory(
             at: Self.rootFolder, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)) ?? []
 
         // Folders without a readable session.json (old test dirs, crashed sessions) are skipped.
         recordings = folders.compactMap { folder in
-            guard let data = try? Data(contentsOf: folder.appendingPathComponent("session.json")),
-                  let metadata = try? decoder.decode(RecordingSession.Metadata.self, from: data)
-            else { return nil }
+            guard let metadata = try? RecordingSession.Metadata.read(from: folder) else { return nil }
             return Recording(folder: folder, metadata: metadata)
         }
         .sorted { $0.startDate > $1.startDate }
@@ -142,6 +138,20 @@ final class RecordingStore: ObservableObject {
                 self.transcribeNext()
             }
         }
+    }
+
+    /// Gives a recording a display name; an empty name goes back to showing its time. Only
+    /// session.json changes, so every file path stays as it is.
+    func rename(_ recording: Recording, to name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard var metadata = try? RecordingSession.Metadata.read(from: recording.folder) else { return }
+        metadata.name = trimmed.isEmpty ? nil : trimmed
+        do {
+            try metadata.write(to: recording.folder)
+        } catch {
+            NSSound.beep()
+        }
+        reload()
     }
 
     func openTranscript(_ recording: Recording) {
