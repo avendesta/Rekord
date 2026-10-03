@@ -38,13 +38,6 @@ final class RecordingSectionTests: XCTestCase {
         XCTAssertEqual(title("2025-12-31T08:00:00Z"), "Dec 31, 2025")
     }
 
-    func testTrashPromptsNameWhatWillGo() {
-        XCTAssertEqual(RecordingsWindowView.trashPrompt(count: 1, single: "Oct 3").title, "Move This Recording to Trash?")
-        let several = RecordingsWindowView.trashPrompt(count: 3, single: "")
-        XCTAssertEqual(several.title, "Move 3 Recordings to Trash?")
-        XCTAssertTrue(several.text.contains("transcript"))
-    }
-
     func testRecordingsAreGroupedByDayInOrder() {
         let now = date("2026-10-03T12:00:00Z")
         let recordings = ["2026-10-03T08:00:00Z", "2026-10-03T07:00:00Z", "2026-10-02T22:00:00Z", "2026-09-29T08:00:00Z"].map {
@@ -190,6 +183,83 @@ final class StorageTests: XCTestCase {
         wait(for: [mixed], timeout: 10)
         XCTAssertNil(store.combineError)
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: root.appendingPathComponent("system-only").path), ["session.json"])
+    }
+
+    private func recording(_ name: String, mic: Bool, files: [String: Double]) throws -> Recording {
+        let folder = root.appendingPathComponent(name, isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        for (file, seconds) in files { try writeTestTrack(at: folder.appendingPathComponent(file), seconds: seconds, level: 0.1) }
+        return Recording(folder: folder, metadata: .init(
+            startDate: Date(), durationSeconds: 1, includeMicrophone: mic, files: [],
+            systemSampleRate: 48_000, micSampleRate: nil, micOffsetSeconds: nil))
+    }
+
+    func testPlaybackUsesTheMixForMicRecordings() throws {
+        XCTAssertEqual(try recording("a", mic: true, files: ["system.caf": 1, "mic.caf": 1, "combined.caf": 1]).playableURL?.lastPathComponent, "combined.caf")
+        XCTAssertNil(try recording("b", mic: true, files: ["system.caf": 1, "mic.caf": 1]).playableURL)  // mix not made yet
+        XCTAssertEqual(try recording("c", mic: false, files: ["system.caf": 1]).playableURL?.lastPathComponent, "system.caf")
+        XCTAssertNil(try recording("d", mic: false, files: [:]).playableURL)
+        XCTAssertNil(try recording("e", mic: false, files: ["system.caf": 0]).playableURL)  // recorded, but no audio in it
+    }
+
+    func testPlayerIgnoresMissingAndEmptyAudio() throws {
+        let player = PlaybackController()
+        player.toggle(try recording("missing", mic: false, files: [:]))
+        XCTAssertNil(player.activeID)
+        player.toggle(try recording("empty", mic: false, files: ["system.caf": 0]))
+        XCTAssertNil(player.activeID)
+        XCTAssertFalse(player.isPlaying)
+    }
+
+    func testPlayerSwitchesSeeksAndStops() throws {
+        let first = try recording("first", mic: false, files: ["system.caf": 2])
+        let second = try recording("second", mic: false, files: ["system.caf": 1])
+        let player = PlaybackController()
+        defer { player.stop() }
+
+        player.toggle(first)
+        XCTAssertEqual(player.activeID, first.id)
+        XCTAssertEqual(player.duration, 2, accuracy: 0.05)
+        player.seek(to: 99)
+        XCTAssertLessThan(player.clock.time, 2)
+
+        player.toggle(second)  // only one at a time
+        XCTAssertEqual(player.activeID, second.id)
+        XCTAssertEqual(player.duration, 1, accuracy: 0.05)
+
+        player.stop()
+        XCTAssertNil(player.activeID)
+        XCTAssertFalse(player.isPlaying)
+        XCTAssertEqual(player.clock.time, 0)
+    }
+
+    func testTrashedRecordingCanBePutBack() throws {
+        try writeSession("2026-09-20_10-00-00", start: "2026-09-20T10:00:00Z", in: root)
+        try Data("hello".utf8).write(to: root.appendingPathComponent("2026-09-20_10-00-00/transcript.txt"))
+        UserDefaults.standard.set(root.path, forKey: AppSettings.outputFolderKey)
+        let store = RecordingStore()
+        store.reload()
+
+        let trashed = store.moveToTrash(store.recordings)
+        XCTAssertEqual(trashed.count, 1)
+        XCTAssertTrue(store.recordings.isEmpty)
+
+        XCTAssertTrue(store.restore(trashed))
+        XCTAssertEqual(store.recordings.map { $0.folder.lastPathComponent }, ["2026-09-20_10-00-00"])
+        XCTAssertTrue(store.recordings[0].hasTranscript)  // the transcript travels with the recording
+
+        XCTAssertFalse(store.restore(trashed))  // nothing left in the Trash to restore: reported, not faked
+    }
+
+    func testTrashingAMissingRecordingReportsNothing() throws {
+        try writeSession("gone", start: "2026-09-20T10:00:00Z", in: root)
+        UserDefaults.standard.set(root.path, forKey: AppSettings.outputFolderKey)
+        let store = RecordingStore()
+        store.reload()
+        let recording = try XCTUnwrap(store.recordings.first)
+        try FileManager.default.removeItem(at: recording.folder)
+
+        XCTAssertTrue(store.moveToTrash([recording]).isEmpty)
     }
 
     func testStoreIsEmptyWhenTheFolderDoesNotExist() {

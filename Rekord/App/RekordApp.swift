@@ -27,7 +27,7 @@ struct RekordApp: App {
         .menuBarExtraStyle(.window)
 
         Window("Recordings", id: "recordings") {
-            RecordingsWindowView(store: store)
+            RecordingsWindowView(store: store, session: session)
         }
         .defaultSize(width: 480, height: 340)
 

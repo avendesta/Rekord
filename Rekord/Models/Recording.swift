@@ -16,6 +16,15 @@ struct Recording: Identifiable {
         (["system.caf"] + (includesMicrophone ? ["mic.caf"] : []))
             .allSatisfy { FileManager.default.fileExists(atPath: folder.appendingPathComponent($0).path) }
     }
+    /// What the user hears for this recording: the mix when there is a mic track, else the system
+    /// track. Nil while the mix isn't made yet, or when the file is gone or holds no audio.
+    var playableURL: URL? {
+        let url = includesMicrophone ? combinedURL : folder.appendingPathComponent("system.caf")
+        // ponytail: a CAF that is all header (4096 bytes) holds no audio; open the file and read its
+        // length instead if another format is ever recorded.
+        let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int) ?? 0
+        return size > 4096 ? url : nil
+    }
     var transcriptURL: URL { folder.appendingPathComponent("transcript.txt") }
     var hasTranscript: Bool { FileManager.default.fileExists(atPath: transcriptURL.path) }
 }

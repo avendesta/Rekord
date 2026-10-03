@@ -2,7 +2,11 @@ import SwiftUI
 
 struct RecordingsWindowView: View {
     @ObservedObject var store: RecordingStore
-    @State private var selection: Set<URL> = []
+    @ObservedObject var session: RecordingSession
+    @StateObject private var player = PlaybackController()
+    /// The last deletion, while its Undo message is showing.
+    @State private var undoable: [RecordingStore.Trashed] = []
+    @State private var undoTimeout: Task<Void, Never>?
 
     /// A short list reads fine as it is; day headers only earn their space once it grows.
     static let groupingThreshold = 8
@@ -19,7 +23,7 @@ struct RecordingsWindowView: View {
                     Text("Start a recording from the menu bar or press \(AppSettings.hotkey.display).")
                 }
             } else {
-                List(selection: $selection) {
+                List {
                     if store.recordings.count < Self.groupingThreshold {
                         ForEach(store.recordings) { row($0, showsDate: true) }
                     } else {
@@ -31,66 +35,92 @@ struct RecordingsWindowView: View {
                     }
                 }
                 .listStyle(.inset)
-                .onDeleteCommand { confirmTrash(selected) }
             }
         }
         .frame(minWidth: 400, minHeight: 220)
         .navigationSubtitle(store.recordings.isEmpty ? "" : "\(store.recordings.count) recording\(store.recordings.count == 1 ? "" : "s")")
         .onAppear { store.reload() }
-        .toolbar {
-            if !selected.isEmpty {
-                ToolbarItem {
-                    Text("\(selected.count) selected").foregroundStyle(.secondary)
+        .onDisappear {
+            player.stop()
+            dismissUndo()
+        }
+        .overlay(alignment: .bottom) {
+            if !undoable.isEmpty {
+                HStack(spacing: 14) {
+                    Text("Recording moved to Trash")
+                    Button("Undo", action: undo)
+                        .buttonStyle(.link)
+                        .keyboardShortcut("z", modifiers: .command)
                 }
-                ToolbarItem {
-                    Button { confirmTrash(selected) } label: { Label("Delete Selected Recordings", systemImage: "trash") }
-                        .help(selected.count == 1 ? "Move Recording to Trash" : "Move \(selected.count) Recordings to Trash")
-                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(.regularMaterial, in: Capsule())
+                .overlay(Capsule().strokeBorder(.separator))
+                .shadow(color: .black.opacity(0.12), radius: 6, y: 2)
+                .padding(.bottom, 14)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
+        }
+        // Rekord records everything the Mac plays, so playback would end up in the new recording.
+        .onChange(of: session.isRecording) { if session.isRecording { player.stop() } }
+        .onChange(of: store.recordings.map(\.id)) {
+            if let active = player.activeID, !store.recordings.contains(where: { $0.id == active }) { player.stop() }
         }
     }
 
-    /// The selection, minus anything that has since left the list.
-    private var selected: [Recording] { store.recordings.filter { selection.contains($0.id) } }
+    /// Straight to the Trash, with no dialog: an Undo message follows, and the recording can also
+    /// be put back from the Trash in Finder.
+    private func trash(_ recording: Recording) {
+        if recording.id == player.activeID { player.stop() }
+        let trashed = store.moveToTrash([recording])
 
-    // NSAlert rather than .confirmationDialog: the latter can dismiss the menu bar popover.
-    private func confirmTrash(_ recordings: [Recording]) {
-        guard let first = recordings.first else { return }
-        let alert = NSAlert()
-        let (title, text) = Self.trashPrompt(count: recordings.count,
-            single: first.startDate.formatted(date: .abbreviated, time: .shortened))
-        alert.messageText = title
-        alert.informativeText = text
-        alert.addButton(withTitle: "Move to Trash").hasDestructiveAction = true
-        alert.addButton(withTitle: "Cancel")
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
-        store.moveToTrash(recordings)
-        selection.subtract(recordings.map(\.id))
+        undoTimeout?.cancel()
+        withAnimation(.easeOut(duration: 0.2)) { undoable = trashed }  // empty if nothing was actually trashed
+        guard !trashed.isEmpty else { return }
+        undoTimeout = Task {
+            try? await Task.sleep(for: .seconds(7))
+            if !Task.isCancelled { withAnimation(.easeIn(duration: 0.2)) { undoable = [] } }
+        }
     }
 
-    static func trashPrompt(count: Int, single: String) -> (title: String, text: String) {
-        let transcripts = "Associated transcript files will also be moved to the Trash."
-        return count == 1
-            ? ("Move This Recording to Trash?", "\(single)\n\(transcripts)")
-            : ("Move \(count) Recordings to Trash?", "These recordings will be moved to the Trash.\n\(transcripts)")
+    private func undo() {
+        let items = undoable
+        dismissUndo()
+        if !store.restore(items) { NSSound.beep() }
     }
+
+    private func dismissUndo() {
+        undoTimeout?.cancel()
+        withAnimation(.easeIn(duration: 0.2)) { undoable = [] }
+    }
+
 
     private func row(_ recording: Recording, showsDate: Bool) -> some View {
         RecordingRowView(
             recording: recording,
             showsDate: showsDate,
-            isSelected: selection.contains(recording.id),
+            playback: playbackState(of: recording),
+            player: player,
+            onTogglePlay: { withAnimation(.easeInOut(duration: 0.15)) { player.toggle(recording) } },
             activity: store.combining.contains(recording.id) ? "Mixing system + mic into combined.caf" : nil,
             transcript: transcriptState(of: recording),
             onTranscribe: { store.transcribe(recording) },
             onOpenTranscript: { store.openTranscript(recording) },
             onReveal: { store.reveal(recording) },
-            // Trashing a selected row trashes the whole selection, as in Finder.
-            onDelete: { confirmTrash(selection.contains(recording.id) ? selected : [recording]) }
+            onDelete: { trash(recording) }
         )
         .frame(maxWidth: 640, alignment: .leading)
         .listRowSeparator(.hidden)
-        .tag(recording.id)
+    }
+
+    private func playbackState(of recording: Recording) -> RecordingRowView.PlaybackState {
+        if session.isRecording { return .unavailable("Playback is unavailable while recording.") }
+        guard recording.hasAudio else { return .unavailable("Audio file unavailable") }
+        guard recording.playableURL != nil else {
+            return .unavailable(recording.includesMicrophone && !recording.isCombined ? "Still preparing this recording…" : "This recording has no audio.")
+        }
+        guard player.activeID == recording.id else { return .idle }
+        return player.isPlaying ? .playing : .paused
     }
 
     private func transcriptState(of recording: Recording) -> RecordingRowView.TranscriptState? {

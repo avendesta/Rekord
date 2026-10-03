@@ -2,6 +2,12 @@
 
 Each release's notes come from its `## <version>` section here, so add one before bumping `MARKETING_VERSION`.
 
+## 1.2.0
+- **Playback.** Each recording in the Recordings window has a play button. The recording you're listening to shows the elapsed time and a scrubber to jump around.
+- **Quicker delete.** The trash icon now moves a recording to the Trash straight away and shows an Undo message for a few seconds (⌘Z works too).
+- Rows can no longer be selected, so deleting several recordings at once is gone; delete them one at a time.
+- Playback is off while Rekord is recording, so it can't end up in the new recording, and it stops when you close the window.
+
 ## 1.1.0
 - **Transcripts.** On macOS 26 or later, each new recording gets a `transcript.txt`, made on your Mac with Apple's speech model. With the microphone included, lines are labelled **Me** (your microphone) and **Others** (the meeting audio). Open it from the Recordings list.
 - Choose the language, hide the timestamps, or turn automatic transcription off, in Settings > Transcription. Older recordings have a Transcribe button in the Recordings list.
