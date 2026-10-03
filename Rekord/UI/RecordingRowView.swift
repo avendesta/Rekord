@@ -4,7 +4,6 @@ struct RecordingRowView: View {
     let recording: Recording
     /// In a date section the day is in the header, so the row shows only the time.
     var showsDate = true
-    var isSelected = false
     var playback: PlaybackState = .idle
     /// Only read by the scrubber of the row being played.
     var player: PlaybackController?
@@ -16,7 +15,7 @@ struct RecordingRowView: View {
     var onTranscribe: () -> Void = {}
     var onOpenTranscript: () -> Void = {}
     let onReveal: () -> Void
-    /// Covers the whole selection when this row is part of one; undoable, so a single row isn't confirmed.
+    /// Not confirmed: the window offers Undo.
     let onDelete: () -> Void
 
     enum PlaybackState: Equatable {
@@ -30,8 +29,8 @@ struct RecordingRowView: View {
 
     @State private var isHovered = false
 
-    /// Actions appear only for the row being pointed at or selected.
-    private var isActive: Bool { isHovered || isSelected }
+    /// Actions appear only for the row being pointed at.
+    private var isActive: Bool { isHovered }
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -59,7 +58,7 @@ struct RecordingRowView: View {
             // A fixed column, so the states sit in the same place on every row.
             transcriptControl
                 .frame(width: 124, alignment: .trailing)
-            // File management stays out of the way until the row is pointed at or selected.
+            // File management stays out of the way until the row is pointed at.
             HStack(spacing: 6) {
                 Button(action: onReveal) { Label("Reveal in Finder", systemImage: "folder") }
                     .tooltip("Reveal in Finder")
@@ -73,7 +72,7 @@ struct RecordingRowView: View {
         }
         .padding(.vertical, 5)
         .padding(.horizontal, 6)
-        .background(isHovered && !isSelected ? Color.primary.opacity(0.05) : .clear, in: RoundedRectangle(cornerRadius: 6))
+        .background(isHovered ? Color.primary.opacity(0.05) : .clear, in: RoundedRectangle(cornerRadius: 6))
         .contentShape(Rectangle())
         .onHover { isHovered = $0 }
         .contextMenu {

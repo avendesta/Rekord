@@ -4,7 +4,6 @@ struct RecordingsWindowView: View {
     @ObservedObject var store: RecordingStore
     @ObservedObject var session: RecordingSession
     @StateObject private var player = PlaybackController()
-    @State private var selection: Set<URL> = []
     /// The last deletion, while its Undo message is showing.
     @State private var undoable: [RecordingStore.Trashed] = []
     @State private var undoTimeout: Task<Void, Never>?
@@ -24,7 +23,7 @@ struct RecordingsWindowView: View {
                     Text("Start a recording from the menu bar or press \(AppSettings.hotkey.display).")
                 }
             } else {
-                List(selection: $selection) {
+                List {
                     if store.recordings.count < Self.groupingThreshold {
                         ForEach(store.recordings) { row($0, showsDate: true) }
                     } else {
@@ -36,12 +35,6 @@ struct RecordingsWindowView: View {
                     }
                 }
                 .listStyle(.inset)
-                .onDeleteCommand { trash(selected) }
-                .onKeyPress(.space) {
-                    guard !session.isRecording, selected.count == 1, selected[0].playableURL != nil else { return .ignored }
-                    withAnimation(.easeInOut(duration: 0.15)) { player.toggle(selected[0]) }
-                    return .handled
-                }
             }
         }
         .frame(minWidth: 400, minHeight: 220)
@@ -54,7 +47,7 @@ struct RecordingsWindowView: View {
         .overlay(alignment: .bottom) {
             if !undoable.isEmpty {
                 HStack(spacing: 14) {
-                    Text(undoable.count == 1 ? "Recording moved to Trash" : "\(undoable.count) recordings moved to Trash")
+                    Text("Recording moved to Trash")
                     Button("Undo", action: undo)
                         .buttonStyle(.link)
                         .keyboardShortcut("z", modifiers: .command)
@@ -73,37 +66,13 @@ struct RecordingsWindowView: View {
         .onChange(of: store.recordings.map(\.id)) {
             if let active = player.activeID, !store.recordings.contains(where: { $0.id == active }) { player.stop() }
         }
-        .toolbar {
-            if !selected.isEmpty {
-                ToolbarItem {
-                    Text("\(selected.count) selected").foregroundStyle(.secondary)
-                }
-                ToolbarItem {
-                    Button { trash(selected) } label: { Label("Delete Selected Recordings", systemImage: "trash") }
-                        .help(selected.count == 1 ? "Move Recording to Trash" : "Move \(selected.count) Recordings to Trash")
-                }
-            }
-        }
     }
 
-    /// The selection, minus anything that has since left the list.
-    private var selected: [Recording] { store.recordings.filter { selection.contains($0.id) } }
-
-    /// One recording goes straight to the Trash; several are confirmed first. Either way an Undo
-    /// message follows, and the recordings can also be put back from the Trash in Finder.
-    private func trash(_ recordings: [Recording]) {
-        guard !recordings.isEmpty else { return }
-        if recordings.count > 1 {
-            // NSAlert rather than .confirmationDialog: the latter can dismiss the menu bar popover.
-            let alert = NSAlert()
-            (alert.messageText, alert.informativeText) = Self.trashPrompt(count: recordings.count)
-            alert.addButton(withTitle: "Move to Trash").hasDestructiveAction = true
-            alert.addButton(withTitle: "Cancel")
-            guard alert.runModal() == .alertFirstButtonReturn else { return }
-        }
-        if recordings.contains(where: { $0.id == player.activeID }) { player.stop() }
-        let trashed = store.moveToTrash(recordings)
-        selection.subtract(recordings.map(\.id))
+    /// Straight to the Trash, with no dialog: an Undo message follows, and the recording can also
+    /// be put back from the Trash in Finder.
+    private func trash(_ recording: Recording) {
+        if recording.id == player.activeID { player.stop() }
+        let trashed = store.moveToTrash([recording])
 
         undoTimeout?.cancel()
         withAnimation(.easeOut(duration: 0.2)) { undoable = trashed }  // empty if nothing was actually trashed
@@ -125,16 +94,11 @@ struct RecordingsWindowView: View {
         withAnimation(.easeIn(duration: 0.2)) { undoable = [] }
     }
 
-    static func trashPrompt(count: Int) -> (title: String, text: String) {
-        ("Move \(count) Recordings to Trash?",
-         "These recordings will be moved to the Trash.\nAssociated transcript files will also be moved to the Trash.")
-    }
 
     private func row(_ recording: Recording, showsDate: Bool) -> some View {
         RecordingRowView(
             recording: recording,
             showsDate: showsDate,
-            isSelected: selection.contains(recording.id),
             playback: playbackState(of: recording),
             player: player,
             onTogglePlay: { withAnimation(.easeInOut(duration: 0.15)) { player.toggle(recording) } },
@@ -143,17 +107,18 @@ struct RecordingsWindowView: View {
             onTranscribe: { store.transcribe(recording) },
             onOpenTranscript: { store.openTranscript(recording) },
             onReveal: { store.reveal(recording) },
-            // Trashing a selected row trashes the whole selection, as in Finder.
-            onDelete: { trash(selection.contains(recording.id) ? selected : [recording]) }
+            onDelete: { trash(recording) }
         )
         .frame(maxWidth: 640, alignment: .leading)
         .listRowSeparator(.hidden)
-        .tag(recording.id)
     }
 
     private func playbackState(of recording: Recording) -> RecordingRowView.PlaybackState {
         if session.isRecording { return .unavailable("Playback is unavailable while recording.") }
-        guard recording.playableURL != nil else { return .unavailable("Audio file unavailable") }
+        guard recording.hasAudio else { return .unavailable("Audio file unavailable") }
+        guard recording.playableURL != nil else {
+            return .unavailable(recording.includesMicrophone && !recording.isCombined ? "Still preparing this recording…" : "This recording has no audio.")
+        }
         guard player.activeID == recording.id else { return .idle }
         return player.isPlaying ? .playing : .paused
     }

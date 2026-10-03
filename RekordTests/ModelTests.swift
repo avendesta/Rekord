@@ -38,12 +38,6 @@ final class RecordingSectionTests: XCTestCase {
         XCTAssertEqual(title("2025-12-31T08:00:00Z"), "Dec 31, 2025")
     }
 
-    func testTrashPromptsNameWhatWillGo() {
-        let several = RecordingsWindowView.trashPrompt(count: 3)
-        XCTAssertEqual(several.title, "Move 3 Recordings to Trash?")
-        XCTAssertTrue(several.text.contains("transcript"))
-    }
-
     func testRecordingsAreGroupedByDayInOrder() {
         let now = date("2026-10-03T12:00:00Z")
         let recordings = ["2026-10-03T08:00:00Z", "2026-10-03T07:00:00Z", "2026-10-02T22:00:00Z", "2026-09-29T08:00:00Z"].map {
@@ -205,6 +199,7 @@ final class StorageTests: XCTestCase {
         XCTAssertNil(try recording("b", mic: true, files: ["system.caf": 1, "mic.caf": 1]).playableURL)  // mix not made yet
         XCTAssertEqual(try recording("c", mic: false, files: ["system.caf": 1]).playableURL?.lastPathComponent, "system.caf")
         XCTAssertNil(try recording("d", mic: false, files: [:]).playableURL)
+        XCTAssertNil(try recording("e", mic: false, files: ["system.caf": 0]).playableURL)  // recorded, but no audio in it
     }
 
     func testPlayerIgnoresMissingAndEmptyAudio() throws {
