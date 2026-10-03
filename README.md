@@ -90,9 +90,14 @@ Press the shortcut again during a recording to see the elapsed time, with **Paus
 **Transcripts.** On macOS 26 or later, Rekord writes a `transcript.txt` for each new recording, on your Mac, a little after you stop. Older recordings have a **Transcribe** button in the Recordings list. With the microphone included, lines are labelled **Me** and **Others**:
 
 ```
-[00:03] Others: Shall we start with the roadmap?
-[00:07] Me: Yes, I have two updates.
+[00:03] Others: Shall we start with the roadmap? We have about twenty minutes.
+
+[00:09] Me: Yes, I have two updates.
 ```
+
+Each paragraph is one stretch of a speaker. If you use speakers, your microphone also hears the meeting; Rekord leaves those repeated lines out of the transcript. Right-click a recording and choose **Copy Transcript** to paste it, with its name and date, into an AI assistant or a document.
+
+**Old audio is removed.** After 7 days, a transcribed recording's audio goes to the Trash and the transcript stays. Change the period or turn this off in **Settings > Audio > Delete audio after**.
 
 Everyone on the other end of a call is "Others"; Rekord doesn't tell them apart. Pick the language, leave out the timestamps, or turn the automatic part off, in **Settings > Transcription**.
 
@@ -116,7 +121,7 @@ Audio is recorded as `.caf`, which survives a crash, and converted to `.m4a` whe
 Open **Settings…** from the menu. It has four tabs:
 
 - **General:** launch at login (the shortcut only works while Rekord is running), the shortcut (any combination that includes ⌘, ⌥ or ⌃) and the save location.
-- **Audio:** which microphone Rekord uses, without changing your Mac's system input, whether the microphone is on by default, and the format recordings are kept in (M4A or lossless CAF), with a button to compress older recordings.
+- **Audio:** which microphone Rekord uses, without changing your Mac's system input, whether the microphone is on by default, and the format recordings are kept in (M4A or lossless CAF), with a button to compress older recordings, and how long audio is kept before it is removed.
 - **Transcription:** automatic transcripts, language, timestamps and whether the microphone is included (macOS 26 or later). Leave the microphone out if it picks up the meeting from your speakers and lines appear twice.
 - **Privacy:** the state of the Microphone and System Audio permissions, with links to their System Settings pages. macOS doesn't report the System Audio permission, so Rekord shows whether your last recording received system audio.
 
