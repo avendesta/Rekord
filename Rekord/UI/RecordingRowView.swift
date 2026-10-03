@@ -47,7 +47,7 @@ struct RecordingRowView: View {
                         Text("·")
                         Image(systemName: "mic.fill")
                             .imageScale(.small)
-                            .tooltip("Microphone included")
+                            .help("Microphone included")
                             .accessibilityLabel("Microphone included")
                     }
                 }
@@ -63,7 +63,7 @@ struct RecordingRowView: View {
             Spacer(minLength: 8)
             if let activity {
                 ProgressView().controlSize(.small)
-                    .tooltip(activity)
+                    .help(activity)
                     .accessibilityLabel(activity)
             }
             // A fixed column, so the states sit in the same place on every row.
@@ -72,9 +72,9 @@ struct RecordingRowView: View {
             // File management stays out of the way until the row is pointed at.
             HStack(spacing: 6) {
                 Button(action: onReveal) { Label("Reveal in Finder", systemImage: "folder") }
-                    .tooltip("Reveal in Finder")
+                    .help("Reveal in Finder")
                 Button(action: onDelete) { Label("Move to Trash", systemImage: "trash") }
-                    .tooltip("Move to Trash")
+                    .help("Move to Trash")
                     .padding(.leading, 6)  // set apart from the everyday controls
             }
             .labelStyle(.iconOnly)
@@ -150,7 +150,7 @@ struct RecordingRowView: View {
         }
         .buttonStyle(.borderless)
         .disabled(unavailable != nil)
-        .tooltip(unavailable ?? (playback == .playing ? "Pause" : "Play"))
+        .help(unavailable ?? (playback == .playing ? "Pause" : "Play"))
         .padding(.top, 3)
     }
 
@@ -159,7 +159,7 @@ struct RecordingRowView: View {
         switch transcript {
         case .notStarted?:
             Button(action: onTranscribe) { Label("Transcribe", systemImage: "text.badge.plus") }
-                .tooltip("Make a transcript of this recording")
+                .help("Make a transcript of this recording")
                 .showOnly(when: isActive)
         case .inProgress?:
             HStack(spacing: 5) {
@@ -171,12 +171,12 @@ struct RecordingRowView: View {
             Button(action: onOpenTranscript) { Label("Open Transcript", systemImage: "doc.text") }
                 .labelStyle(.iconOnly)
                 .buttonStyle(.borderless)
-                .tooltip("Open Transcript")
+                .help("Open Transcript")
                 .showOnly(when: isActive)
         case .failed(let reason)?:
             // A failure stays visible: it is a status, not just an action.
             Button(action: onTranscribe) { Label("Try Again", systemImage: "exclamationmark.triangle") }
-                .tooltip(reason)
+                .help(reason)
         case nil:
             EmptyView()
         }
@@ -192,23 +192,6 @@ private extension View {
     /// Keeps the view's space but hides it, also from clicks and VoiceOver (the context menu has the same actions).
     func showOnly(when visible: Bool) -> some View {
         opacity(visible ? 1 : 0).allowsHitTesting(visible).accessibilityHidden(!visible)
-    }
-
-    /// `.help()` doesn't show its tooltip on controls inside a List row here, so the tip is set on an AppKit view.
-    func tooltip(_ text: String) -> some View {
-        overlay(Tooltip(text: text))
-    }
-}
-
-private struct Tooltip: NSViewRepresentable {
-    let text: String
-
-    func makeNSView(context: Context) -> NSView { ClickThroughView() }
-    func updateNSView(_ view: NSView, context: Context) { view.toolTip = text }
-
-    /// Shows a tooltip but lets clicks reach the button underneath.
-    private final class ClickThroughView: NSView {
-        override func hitTest(_ point: NSPoint) -> NSView? { nil }
     }
 }
 
