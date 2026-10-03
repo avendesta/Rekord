@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import Foundation
 
 /// Loads past sessions by scanning the Rekord folder for `session.json` files.
@@ -7,8 +8,21 @@ final class RecordingStore: ObservableObject {
     @Published private(set) var recordings: [Recording] = []
     @Published private(set) var combining: Set<URL> = []
     @Published private(set) var combineError: String?
+    /// Recordings whose mixdown failed; not retried until the next launch.
+    private var failed: Set<URL> = []
+
+    private var sessionObserver: AnyCancellable?
 
     static var rootFolder: URL { AppSettings.outputFolder }
+
+    /// Reloads whenever the session changes state, so a finished recording is listed and mixed even
+    /// if no window is open. Deferred a turn: `stop()` writes session.json after it changes state.
+    func follow(_ session: RecordingSession) {
+        sessionObserver = session.$state
+            .dropFirst()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.reload() }
+    }
 
     func reload() {
         let decoder = JSONDecoder()
@@ -24,21 +38,28 @@ final class RecordingStore: ObservableObject {
             return Recording(folder: folder, metadata: metadata)
         }
         .sorted { $0.startDate > $1.startDate }
+
+        // Every recording with a mic track gets its mixdown, without the user asking.
+        for recording in recordings where recording.includesMicrophone && !recording.isCombined && !failed.contains(recording.id) {
+            combine(recording)
+        }
     }
 
     func reveal(_ recording: Recording) {
         NSWorkspace.shared.activateFileViewerSelecting([recording.folder])
     }
 
-    func combine(_ recording: Recording) {
+    private func combine(_ recording: Recording) {
         guard !combining.contains(recording.id) else { return }
         combining.insert(recording.id)
-        combineError = nil
         Task.detached {
             let result = Result { try CombineEngine.combine(folder: recording.folder, metadata: recording.metadata) }
             await MainActor.run {
                 self.combining.remove(recording.id)
-                if case .failure(let error) = result { self.combineError = error.localizedDescription }
+                if case .failure(let error) = result {
+                    self.failed.insert(recording.id)
+                    self.combineError = error.localizedDescription
+                }
                 self.reload()
             }
         }

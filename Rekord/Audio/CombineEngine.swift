@@ -21,6 +21,21 @@ enum CombineEngine {
         let systemFile = try AVAudioFile(forReading: folder.appendingPathComponent("system.caf"))
         let micFile = try AVAudioFile(forReading: folder.appendingPathComponent("mic.caf"))
         let outputURL = folder.appendingPathComponent("combined.caf")
+        // Rendered under a temporary name, so a mix cut short (quit, error) never passes for a finished one.
+        let tempURL = folder.appendingPathComponent("combined.tmp.caf")
+        try? FileManager.default.removeItem(at: tempURL)
+        do {
+            try render(systemFile: systemFile, micFile: micFile, offset: metadata.micOffsetSeconds ?? 0, to: tempURL)
+        } catch {
+            try? FileManager.default.removeItem(at: tempURL)
+            throw error
+        }
+        try? FileManager.default.removeItem(at: outputURL)
+        try FileManager.default.moveItem(at: tempURL, to: outputURL)
+        return outputURL
+    }
+
+    private static func render(systemFile: AVAudioFile, micFile: AVAudioFile, offset: Double, to outputURL: URL) throws {
 
         let sampleRate = systemFile.processingFormat.sampleRate
         guard let outFormat = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 2) else {
@@ -28,7 +43,6 @@ enum CombineEngine {
         }
 
         // Positive offset = mic started later, so pad the mic; negative pads the system track.
-        let offset = metadata.micOffsetSeconds ?? 0
         let engine = AVAudioEngine()
         let tracks: [(file: AVAudioFile, delay: Double)] = [
             (systemFile, offset < 0 ? -offset : 0),
@@ -86,6 +100,5 @@ enum CombineEngine {
                 throw CombineError.renderFailed
             }
         }
-        return outputURL
     }
 }

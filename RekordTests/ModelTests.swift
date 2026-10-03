@@ -121,6 +121,30 @@ final class StorageTests: XCTestCase {
         XCTAssertFalse(store.recordings.first?.isCombined ?? true)
     }
 
+    func testStoreMixesMicRecordingsOnItsOwn() throws {
+        try writeSession("system-only", start: "2026-09-20T10:00:00Z", in: root)
+        let withMic = root.appendingPathComponent("with-mic", isDirectory: true)
+        try FileManager.default.createDirectory(at: withMic, withIntermediateDirectories: true)
+        try writeTestTrack(at: withMic.appendingPathComponent("system.caf"), seconds: 0.5, level: 0.25)
+        try writeTestTrack(at: withMic.appendingPathComponent("mic.caf"), seconds: 0.5, level: 0.25)
+        let json = """
+        {"startDate":"2026-09-24T09:00:00Z","durationSeconds":0.5,"includeMicrophone":true,
+         "files":["system.caf","mic.caf"],"systemSampleRate":48000,"micSampleRate":48000,"micOffsetSeconds":0}
+        """
+        try Data(json.utf8).write(to: withMic.appendingPathComponent("session.json"))
+        UserDefaults.standard.set(root.path, forKey: AppSettings.outputFolderKey)
+
+        let store = RecordingStore()
+        store.reload()
+
+        let mixed = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            store.combining.isEmpty && FileManager.default.fileExists(atPath: withMic.appendingPathComponent("combined.caf").path)
+        }, object: nil)
+        wait(for: [mixed], timeout: 10)
+        XCTAssertNil(store.combineError)
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: root.appendingPathComponent("system-only").path), ["session.json"])
+    }
+
     func testStoreIsEmptyWhenTheFolderDoesNotExist() {
         UserDefaults.standard.set(root.appendingPathComponent("missing").path, forKey: AppSettings.outputFolderKey)
         let store = RecordingStore()

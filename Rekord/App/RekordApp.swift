@@ -3,12 +3,15 @@ import SwiftUI
 @main
 struct RekordApp: App {
     @StateObject private var session: RecordingSession
-    @StateObject private var store = RecordingStore()
+    @StateObject private var store: RecordingStore
     @StateObject private var hotkeyPopup: HotkeyPopupController
 
     init() {
         let session = RecordingSession()
         _session = StateObject(wrappedValue: session)
+        let store = RecordingStore()
+        store.follow(session)
+        _store = StateObject(wrappedValue: store)
         _hotkeyPopup = StateObject(wrappedValue: HotkeyPopupController(session: session))
         #if DEBUG
         print("[Rekord] MenuBarExtra loaded")

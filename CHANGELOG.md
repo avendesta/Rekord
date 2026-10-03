@@ -2,6 +2,10 @@
 
 Each release's notes come from its `## <version>` section here, so add one before bumping `MARKETING_VERSION`.
 
+## 1.0.1
+- Recordings that include the microphone are now mixed into `combined.caf` automatically, a moment after you stop. The Combine button is gone. Older recordings that were never combined are mixed the next time Rekord lists them.
+- Each microphone recording therefore takes roughly twice the disk space it did before.
+
 ## 1.0.0
 - First stable release. Rekord is now also prepared for the Mac App Store: the output folder you choose in Settings is remembered securely, which lets the sandboxed App Store build save recordings where you want them.
 - Added a privacy policy (`PRIVACY.md`): Rekord collects nothing and never sends your recordings anywhere.

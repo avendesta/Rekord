@@ -55,7 +55,6 @@ struct MenuBarView: View {
         .onAppear { refresh() }
         // The popup view outlives each opening, so refresh when its window comes forward.
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in refresh() }
-        .onChange(of: session.state) { _ in store.reload() }
     }
 
     private func refresh() {

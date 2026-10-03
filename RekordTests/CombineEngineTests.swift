@@ -2,6 +2,17 @@ import AVFoundation
 import XCTest
 @testable import Rekord
 
+/// Writes a mono CAF holding a constant value, so a mix can be checked by sample level.
+func writeTestTrack(at url: URL, seconds: Double, level: Float, rate: Double = 48_000) throws {
+    let format = AVAudioFormat(standardFormatWithSampleRate: rate, channels: 1)!
+    let file = try AVAudioFile(forWriting: url, settings: format.settings, commonFormat: .pcmFormatFloat32, interleaved: false)
+    let frames = AVAudioFrameCount(seconds * rate)
+    let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames)!
+    buffer.frameLength = frames
+    for i in 0..<Int(frames) { buffer.floatChannelData![0][i] = level }
+    try file.write(from: buffer)
+}
+
 final class CombineEngineTests: XCTestCase {
     private var folder: URL!
     private let rate = 48_000.0
@@ -15,16 +26,8 @@ final class CombineEngineTests: XCTestCase {
         try? FileManager.default.removeItem(at: folder)
     }
 
-    /// Writes a mono CAF holding a constant value, so the mix can be checked by sample level.
     private func writeTrack(_ name: String, seconds: Double, level: Float) throws {
-        let format = AVAudioFormat(standardFormatWithSampleRate: rate, channels: 1)!
-        let file = try AVAudioFile(forWriting: folder.appendingPathComponent(name), settings: format.settings,
-                                   commonFormat: .pcmFormatFloat32, interleaved: false)
-        let frames = AVAudioFrameCount(seconds * rate)
-        let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames)!
-        buffer.frameLength = frames
-        for i in 0..<Int(frames) { buffer.floatChannelData![0][i] = level }
-        try file.write(from: buffer)
+        try writeTestTrack(at: folder.appendingPathComponent(name), seconds: seconds, level: level, rate: rate)
     }
 
     private func metadata(micOffset: Double?, includeMic: Bool = true) -> RecordingSession.Metadata {
@@ -52,6 +55,7 @@ final class CombineEngineTests: XCTestCase {
         XCTAssertEqual(file.length, AVAudioFramePosition(rate), accuracy: 4096)
         XCTAssertEqual(file.processingFormat.channelCount, 2)
         XCTAssertEqual(try level(of: output, at: 0.5), 0.5, accuracy: 0.01)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: folder.appendingPathComponent("combined.tmp.caf").path))
     }
 
     func testLateMicIsPaddedByTheOffset() throws {
@@ -75,6 +79,15 @@ final class CombineEngineTests: XCTestCase {
 
         XCTAssertEqual(try level(of: output, at: 0.25), 0.5, accuracy: 0.01)   // mic only
         XCTAssertEqual(try level(of: output, at: 1.25), 0.25, accuracy: 0.01)  // system only
+    }
+
+    func testAFailedMixLeavesNoFileBehind() throws {
+        try writeTrack("system.caf", seconds: 1, level: 0.25)  // no mic.caf
+
+        XCTAssertThrowsError(try CombineEngine.combine(folder: folder, metadata: metadata(micOffset: 0)))
+
+        let names = try FileManager.default.contentsOfDirectory(atPath: folder.path)
+        XCTAssertEqual(names, ["system.caf"])
     }
 
     func testRefusesARecordingWithoutMic() {

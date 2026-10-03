@@ -3,7 +3,6 @@ import SwiftUI
 struct RecordingRowView: View {
     let recording: Recording
     var isCombining = false
-    let onCombine: () -> Void
     let onReveal: () -> Void
     let onDelete: () -> Void
 
@@ -17,14 +16,9 @@ struct RecordingRowView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            // No mic track means system.caf is already the final output: nothing to combine.
-            if recording.includesMicrophone {
-                if isCombining {
-                    ProgressView().controlSize(.small)
-                } else {
-                    Button(recording.isCombined ? "Re-combine" : "Combine", action: onCombine)
-                        .help("Mix system + mic into combined.caf")
-                }
+            if isCombining {
+                ProgressView().controlSize(.small)
+                    .help("Mixing system + mic into combined.caf")
             }
             Button(action: onReveal) { Image(systemName: "folder") }
                 .help("Reveal in Finder")

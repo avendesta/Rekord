@@ -1,6 +1,6 @@
 # Rekord
 
-Record your meetings on a Mac as **two separate audio tracks**: the meeting audio (Zoom, Webex, Meet, anything playing on your Mac) and your **microphone**. Separate tracks make transcription and speaker labelling much easier. When you'd rather have one file, a single click mixes them together.
+Record your meetings on a Mac as **two separate audio tracks**: the meeting audio (Zoom, Webex, Meet, anything playing on your Mac) and your **microphone**. Separate tracks make transcription and speaker labelling much easier. When you'd rather have one file, Rekord also saves a mix of the two.
 
 Rekord lives in the menu bar, has no Dock icon, and needs no virtual audio driver.
 
@@ -19,7 +19,7 @@ Rekord lives in the menu bar, has no Dock icon, and needs no virtual audio drive
   </tr>
   <tr>
     <td align="center" valign="top">
-      <img src="docs/screenshots/recordings.png" width="340" alt="The Recordings window listing past recordings with Combine, reveal and delete buttons"><br>
+      <img src="docs/screenshots/recordings.png" width="340" alt="The Recordings window listing past recordings with reveal and delete buttons"><br>
       <sub>Recordings</sub>
     </td>
     <td align="center" valign="top">
@@ -87,7 +87,7 @@ Click a row, press `1` or `2`, or use the arrow keys and Return. Esc cancels. Re
 
 Press the shortcut again during a recording to see the elapsed time and a **Stop** button. The menu bar icon's inner dot is red while recording.
 
-**Find your recordings** under **Recent Recordings** in the menu. From there you can reveal a recording in Finder, move it to the Trash, or click **Combine** to mix both tracks into one file.
+**Find your recordings** under **Recent Recordings** in the menu. From there you can reveal a recording in Finder or move it to the Trash. When a recording includes the microphone, Rekord also mixes both tracks into one file for you, a moment after you stop.
 
 Each recording is a folder in `~/Documents/Rekord/` (or the folder you chose in Settings), named by start time:
 
@@ -95,7 +95,7 @@ Each recording is a folder in `~/Documents/Rekord/` (or the folder you chose in 
 2026-09-23_14-30-00/
   system.caf      meeting audio
   mic.caf         your microphone (only if it was included)
-  combined.caf    both mixed together (only after you click Combine)
+  combined.caf    both mixed together (made automatically when the mic was included)
   session.json    start time, duration, sample rates, mic/system sync offset
 ```
 
@@ -146,7 +146,7 @@ The unit tests in `RekordTests/` cover the mixdown (`CombineEngine`), `session.j
 - **System audio:** `SystemAudioRecorder` creates a global Core Audio process tap (`AudioHardwareCreateProcessTap`, macOS 14.4+) and pairs it with the default output device in a private aggregate device, then writes the IOProc's buffers to a file. Without the System Audio permission the tap still runs but delivers zeros, so `sawAudio` tracks whether any real signal arrived.
 - **Microphone:** `MicRecorder` taps an `AVAudioEngine` input node, writing on its own queue. It can point that engine at a chosen device without changing the system default.
 - **Session:** `RecordingSession` starts both, records each track's first-buffer host time so `session.json` can store the sync offset, and rolls back on any start failure.
-- **Combine:** `CombineEngine` mixes the tracks offline with `AVAudioEngine` manual rendering, padding whichever track started later.
+- **Combine:** `RecordingStore` mixes every finished mic recording automatically; `CombineEngine` mixes the tracks offline with `AVAudioEngine` manual rendering, padding whichever track started later.
 - **Shortcut:** `HotkeyManager` uses Carbon's `RegisterEventHotKey`, which works globally without Accessibility permission.
 
 ```
