@@ -192,6 +192,53 @@ final class StorageTests: XCTestCase {
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: root.appendingPathComponent("system-only").path), ["session.json"])
     }
 
+    private func recording(_ name: String, mic: Bool, files: [String: Double]) throws -> Recording {
+        let folder = root.appendingPathComponent(name, isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        for (file, seconds) in files { try writeTestTrack(at: folder.appendingPathComponent(file), seconds: seconds, level: 0.1) }
+        return Recording(folder: folder, metadata: .init(
+            startDate: Date(), durationSeconds: 1, includeMicrophone: mic, files: [],
+            systemSampleRate: 48_000, micSampleRate: nil, micOffsetSeconds: nil))
+    }
+
+    func testPlaybackUsesTheMixForMicRecordings() throws {
+        XCTAssertEqual(try recording("a", mic: true, files: ["system.caf": 1, "mic.caf": 1, "combined.caf": 1]).playableURL?.lastPathComponent, "combined.caf")
+        XCTAssertNil(try recording("b", mic: true, files: ["system.caf": 1, "mic.caf": 1]).playableURL)  // mix not made yet
+        XCTAssertEqual(try recording("c", mic: false, files: ["system.caf": 1]).playableURL?.lastPathComponent, "system.caf")
+        XCTAssertNil(try recording("d", mic: false, files: [:]).playableURL)
+    }
+
+    func testPlayerIgnoresMissingAndEmptyAudio() throws {
+        let player = PlaybackController()
+        player.toggle(try recording("missing", mic: false, files: [:]))
+        XCTAssertNil(player.activeID)
+        player.toggle(try recording("empty", mic: false, files: ["system.caf": 0]))
+        XCTAssertNil(player.activeID)
+        XCTAssertFalse(player.isPlaying)
+    }
+
+    func testPlayerSwitchesSeeksAndStops() throws {
+        let first = try recording("first", mic: false, files: ["system.caf": 2])
+        let second = try recording("second", mic: false, files: ["system.caf": 1])
+        let player = PlaybackController()
+        defer { player.stop() }
+
+        player.toggle(first)
+        XCTAssertEqual(player.activeID, first.id)
+        XCTAssertEqual(player.duration, 2, accuracy: 0.05)
+        player.seek(to: 99)
+        XCTAssertLessThan(player.clock.time, 2)
+
+        player.toggle(second)  // only one at a time
+        XCTAssertEqual(player.activeID, second.id)
+        XCTAssertEqual(player.duration, 1, accuracy: 0.05)
+
+        player.stop()
+        XCTAssertNil(player.activeID)
+        XCTAssertFalse(player.isPlaying)
+        XCTAssertEqual(player.clock.time, 0)
+    }
+
     func testStoreIsEmptyWhenTheFolderDoesNotExist() {
         UserDefaults.standard.set(root.appendingPathComponent("missing").path, forKey: AppSettings.outputFolderKey)
         let store = RecordingStore()

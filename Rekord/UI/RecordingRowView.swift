@@ -5,6 +5,10 @@ struct RecordingRowView: View {
     /// In a date section the day is in the header, so the row shows only the time.
     var showsDate = true
     var isSelected = false
+    var playback: PlaybackState = .idle
+    /// Only read by the scrubber of the row being played.
+    var player: PlaybackController?
+    var onTogglePlay: () -> Void = {}
     /// What Rekord is doing to this recording in the background, if anything.
     var activity: String?
     /// Nil where transcription isn't available, which hides the transcript control.
@@ -14,6 +18,10 @@ struct RecordingRowView: View {
     let onReveal: () -> Void
     /// Asks for confirmation itself, and covers the whole selection when this row is part of one.
     let onDelete: () -> Void
+
+    enum PlaybackState: Equatable {
+        case unavailable(String), idle, playing, paused
+    }
 
     // No case named `none`: on an optional that would silently mean nil.
     enum TranscriptState: Equatable {
@@ -26,7 +34,8 @@ struct RecordingRowView: View {
     private var isActive: Bool { isHovered || isSelected }
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(alignment: .top, spacing: 10) {
+            playButton
             VStack(alignment: .leading, spacing: 2) {
                 Text(showsDate
                      ? recording.startDate.formatted(date: .abbreviated, time: .shortened)
@@ -34,6 +43,12 @@ struct RecordingRowView: View {
                 Text("\(duration) · \(recording.includesMicrophone ? "System + Microphone" : "System Audio")")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+                // Only the recording being listened to grows a scrubber; every other row stays compact.
+                if playback == .playing || playback == .paused, let player {
+                    PlaybackBar(player: player, clock: player.clock)
+                        .padding(.top, 4)
+                        .transition(.opacity)
+                }
             }
             Spacer(minLength: 8)
             if let activity {
@@ -61,6 +76,11 @@ struct RecordingRowView: View {
         .contentShape(Rectangle())
         .onHover { isHovered = $0 }
         .contextMenu {
+            switch playback {
+            case .idle, .paused: Button("Play", action: onTogglePlay)
+            case .playing: Button("Pause", action: onTogglePlay)
+            case .unavailable: EmptyView()
+            }
             switch transcript {
             case .ready?: Button("Open Transcript", action: onOpenTranscript)
             case .notStarted?, .failed?: Button("Transcribe", action: onTranscribe)
@@ -70,6 +90,22 @@ struct RecordingRowView: View {
             Divider()
             Button("Move to Trash…", role: .destructive, action: onDelete)
         }
+    }
+
+    private var playButton: some View {
+        let unavailable: String? = { if case .unavailable(let why) = playback { return why } else { return nil } }()
+        return Button(action: onTogglePlay) {
+            Label(playback == .playing ? "Pause" : "Play", systemImage: playback == .playing ? "pause.fill" : "play.fill")
+                .labelStyle(.iconOnly)
+                .font(.system(size: 11))
+                .frame(width: 26, height: 26)
+                .background(Color.primary.opacity(0.08), in: Circle())
+                .contentShape(Circle())
+        }
+        .buttonStyle(.borderless)
+        .disabled(unavailable != nil)
+        .tooltip(unavailable ?? (playback == .playing ? "Pause" : "Play"))
+        .padding(.top, 3)
     }
 
     @ViewBuilder
@@ -127,5 +163,29 @@ private struct Tooltip: NSViewRepresentable {
     /// Shows a tooltip but lets clicks reach the button underneath.
     private final class ClickThroughView: NSView {
         override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    }
+}
+
+/// Elapsed time, scrubber and total time for the recording being played.
+private struct PlaybackBar: View {
+    let player: PlaybackController
+    @ObservedObject var clock: PlaybackClock
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(Self.format(clock.time))
+            Slider(value: Binding(get: { clock.time }, set: { player.seek(to: $0) }), in: 0...max(player.duration, 0.1))
+                .controlSize(.small)
+                .accessibilityLabel("Playback position")
+            Text(Self.format(player.duration))
+        }
+        .font(.caption.monospacedDigit())
+        .foregroundStyle(.secondary)
+        .frame(maxWidth: 320)
+    }
+
+    static func format(_ seconds: TimeInterval) -> String {
+        let total = Int(seconds.rounded(.down))
+        return String(format: "%d:%02d", total / 60, total % 60)
     }
 }

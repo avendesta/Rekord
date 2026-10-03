@@ -2,6 +2,8 @@ import SwiftUI
 
 struct RecordingsWindowView: View {
     @ObservedObject var store: RecordingStore
+    @ObservedObject var session: RecordingSession
+    @StateObject private var player = PlaybackController()
     @State private var selection: Set<URL> = []
 
     /// A short list reads fine as it is; day headers only earn their space once it grows.
@@ -32,11 +34,22 @@ struct RecordingsWindowView: View {
                 }
                 .listStyle(.inset)
                 .onDeleteCommand { confirmTrash(selected) }
+                .onKeyPress(.space) {
+                    guard !session.isRecording, selected.count == 1, selected[0].playableURL != nil else { return .ignored }
+                    withAnimation(.easeInOut(duration: 0.15)) { player.toggle(selected[0]) }
+                    return .handled
+                }
             }
         }
         .frame(minWidth: 400, minHeight: 220)
         .navigationSubtitle(store.recordings.isEmpty ? "" : "\(store.recordings.count) recording\(store.recordings.count == 1 ? "" : "s")")
         .onAppear { store.reload() }
+        .onDisappear { player.stop() }
+        // Rekord records everything the Mac plays, so playback would end up in the new recording.
+        .onChange(of: session.isRecording) { if session.isRecording { player.stop() } }
+        .onChange(of: store.recordings.map(\.id)) {
+            if let active = player.activeID, !store.recordings.contains(where: { $0.id == active }) { player.stop() }
+        }
         .toolbar {
             if !selected.isEmpty {
                 ToolbarItem {
@@ -64,6 +77,7 @@ struct RecordingsWindowView: View {
         alert.addButton(withTitle: "Move to Trash").hasDestructiveAction = true
         alert.addButton(withTitle: "Cancel")
         guard alert.runModal() == .alertFirstButtonReturn else { return }
+        if recordings.contains(where: { $0.id == player.activeID }) { player.stop() }
         store.moveToTrash(recordings)
         selection.subtract(recordings.map(\.id))
     }
@@ -80,6 +94,9 @@ struct RecordingsWindowView: View {
             recording: recording,
             showsDate: showsDate,
             isSelected: selection.contains(recording.id),
+            playback: playbackState(of: recording),
+            player: player,
+            onTogglePlay: { withAnimation(.easeInOut(duration: 0.15)) { player.toggle(recording) } },
             activity: store.combining.contains(recording.id) ? "Mixing system + mic into combined.caf" : nil,
             transcript: transcriptState(of: recording),
             onTranscribe: { store.transcribe(recording) },
@@ -91,6 +108,13 @@ struct RecordingsWindowView: View {
         .frame(maxWidth: 640, alignment: .leading)
         .listRowSeparator(.hidden)
         .tag(recording.id)
+    }
+
+    private func playbackState(of recording: Recording) -> RecordingRowView.PlaybackState {
+        if session.isRecording { return .unavailable("Playback is unavailable while recording.") }
+        guard recording.playableURL != nil else { return .unavailable("Audio file unavailable") }
+        guard player.activeID == recording.id else { return .idle }
+        return player.isPlaying ? .playing : .paused
     }
 
     private func transcriptState(of recording: Recording) -> RecordingRowView.TranscriptState? {

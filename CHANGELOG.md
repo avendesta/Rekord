@@ -2,6 +2,10 @@
 
 Each release's notes come from its `## <version>` section here, so add one before bumping `MARKETING_VERSION`.
 
+## 1.2.0
+- **Playback.** Each recording in the Recordings window has a play button. The recording you're listening to shows the elapsed time and a scrubber to jump around; press Space to play or pause the selected recording.
+- Playback is off while Rekord is recording, so it can't end up in the new recording, and it stops when you close the window.
+
 ## 1.1.0
 - **Transcripts.** On macOS 26 or later, each new recording gets a `transcript.txt`, made on your Mac with Apple's speech model. With the microphone included, lines are labelled **Me** (your microphone) and **Others** (the meeting audio). Open it from the Recordings list.
 - Choose the language, hide the timestamps, or turn automatic transcription off, in Settings > Transcription. Older recordings have a Transcribe button in the Recordings list.
