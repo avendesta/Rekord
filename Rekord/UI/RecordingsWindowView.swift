@@ -17,7 +17,6 @@ struct RecordingsWindowView: View {
                     RecordingRowView(
                         recording: recording,
                         isCombining: store.combining.contains(recording.id),
-                        onCombine: { store.combine(recording) },
                         onReveal: { store.reveal(recording) },
                         onDelete: { store.moveToTrash(recording) }
                     )
