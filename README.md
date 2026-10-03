@@ -85,7 +85,7 @@ If a recording's system audio comes out silent, the second permission is missing
 
 Click a row, press `1` or `2`, or use the arrow keys and Return. Esc cancels. Rekord remembers your last choice, so **⇧⌘9** then **Return** repeats it.
 
-Press the shortcut again during a recording to see the elapsed time and a **Stop** button. The menu bar icon's inner dot is red while recording.
+Press the shortcut again during a recording to see the elapsed time and a **Stop** button. The menu bar icon's inner dot is red while recording, or orange if no system audio is arriving (usually a missing permission).
 
 **Find your recordings** under **Recent Recordings** in the menu. From there you can reveal a recording in Finder or move it to the Trash. When a recording includes the microphone, Rekord also mixes both tracks into one file for you, a moment after you stop.
 
