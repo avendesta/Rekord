@@ -47,15 +47,6 @@ struct RecordingsWindowView: View {
                         .help(selected.count == 1 ? "Move Recording to Trash" : "Move \(selected.count) Recordings to Trash")
                 }
             }
-            ToolbarItem {
-                Menu {
-                    Button("Delete All Recordings…", role: .destructive) { confirmTrash(store.recordings, all: true) }
-                        .disabled(store.recordings.isEmpty)
-                } label: {
-                    Label("More Actions", systemImage: "ellipsis.circle")
-                }
-                .help("More Actions")
-            }
         }
     }
 
@@ -63,30 +54,25 @@ struct RecordingsWindowView: View {
     private var selected: [Recording] { store.recordings.filter { selection.contains($0.id) } }
 
     // NSAlert rather than .confirmationDialog: the latter can dismiss the menu bar popover.
-    private func confirmTrash(_ recordings: [Recording], all: Bool = false) {
+    private func confirmTrash(_ recordings: [Recording]) {
         guard let first = recordings.first else { return }
         let alert = NSAlert()
-        let (title, text, button) = Self.trashPrompt(count: recordings.count, all: all,
+        let (title, text) = Self.trashPrompt(count: recordings.count,
             single: first.startDate.formatted(date: .abbreviated, time: .shortened))
         alert.messageText = title
         alert.informativeText = text
-        alert.addButton(withTitle: button).hasDestructiveAction = true
+        alert.addButton(withTitle: "Move to Trash").hasDestructiveAction = true
         alert.addButton(withTitle: "Cancel")
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         store.moveToTrash(recordings)
         selection.subtract(recordings.map(\.id))
     }
 
-    static func trashPrompt(count: Int, all: Bool, single: String) -> (title: String, text: String, button: String) {
+    static func trashPrompt(count: Int, single: String) -> (title: String, text: String) {
         let transcripts = "Associated transcript files will also be moved to the Trash."
-        if all {
-            return ("Move All \(count) Recording\(count == 1 ? "" : "s") to Trash?",
-                    "All recordings in Rekord will be moved to the Trash.\n\(transcripts)", "Move All to Trash")
-        }
-        if count == 1 {
-            return ("Move This Recording to Trash?", "\(single)\n\(transcripts)", "Move to Trash")
-        }
-        return ("Move \(count) Recordings to Trash?", "These recordings will be moved to the Trash.\n\(transcripts)", "Move to Trash")
+        return count == 1
+            ? ("Move This Recording to Trash?", "\(single)\n\(transcripts)")
+            : ("Move \(count) Recordings to Trash?", "These recordings will be moved to the Trash.\n\(transcripts)")
     }
 
     private func row(_ recording: Recording, showsDate: Bool) -> some View {

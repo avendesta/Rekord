@@ -22,6 +22,9 @@ struct RecordingRowView: View {
 
     @State private var isHovered = false
 
+    /// Actions appear only for the row being pointed at or selected.
+    private var isActive: Bool { isHovered || isSelected }
+
     var body: some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
@@ -35,25 +38,23 @@ struct RecordingRowView: View {
             Spacer(minLength: 8)
             if let activity {
                 ProgressView().controlSize(.small)
-                    .help(activity)
+                    .tooltip(activity)
                     .accessibilityLabel(activity)
             }
-            // A fixed column, so the three states sit in the same place on every row.
+            // A fixed column, so the states sit in the same place on every row.
             transcriptControl
                 .controlSize(.small)
-                .frame(width: 124, alignment: .leading)
+                .frame(width: 112, alignment: .trailing)
             // File management stays out of the way until the row is pointed at or selected.
             HStack(spacing: 6) {
                 Button(action: onReveal) { Label("Reveal in Finder", systemImage: "folder") }
-                    .help("Reveal in Finder")
+                    .tooltip("Reveal in Finder")
                 Button(action: onDelete) { Label("Move to Trash", systemImage: "trash") }
-                    .help("Move to Trash…")
+                    .tooltip("Move to Trash…")
             }
             .labelStyle(.iconOnly)
             .buttonStyle(.borderless)
-            .opacity(isHovered || isSelected ? 1 : 0)
-            .allowsHitTesting(isHovered || isSelected)
-            .accessibilityHidden(!(isHovered || isSelected))  // the same actions are in the context menu
+            .showOnly(when: isActive)
         }
         .padding(.vertical, 5)
         .padding(.horizontal, 6)
@@ -77,7 +78,8 @@ struct RecordingRowView: View {
         switch transcript {
         case .notStarted?:
             Button(action: onTranscribe) { Label("Transcribe", systemImage: "text.badge.plus") }
-                .help("Make a transcript of this recording")
+                .tooltip("Make a transcript of this recording")
+                .showOnly(when: isActive)
         case .inProgress?:
             HStack(spacing: 5) {
                 ProgressView().controlSize(.small)
@@ -85,11 +87,15 @@ struct RecordingRowView: View {
             }
             .accessibilityElement(children: .combine)
         case .ready?:
-            Button(action: onOpenTranscript) { Label("Transcript", systemImage: "doc.text") }
-                .help("Open Transcript")
+            Button(action: onOpenTranscript) { Label("Open Transcript", systemImage: "doc.text") }
+                .labelStyle(.iconOnly)
+                .buttonStyle(.borderless)
+                .tooltip("Open Transcript")
+                .showOnly(when: isActive)
         case .failed(let reason)?:
+            // A failure stays visible: it is a status, not just an action.
             Button(action: onTranscribe) { Label("Try Again", systemImage: "exclamationmark.triangle") }
-                .help(reason)
+                .tooltip(reason)
         case nil:
             EmptyView()
         }
@@ -98,5 +104,29 @@ struct RecordingRowView: View {
     private var duration: String {
         let seconds = Int(recording.duration)
         return String(format: "%d:%02d", seconds / 60, seconds % 60)
+    }
+}
+
+private extension View {
+    /// Keeps the view's space but hides it, also from clicks and VoiceOver (the context menu has the same actions).
+    func showOnly(when visible: Bool) -> some View {
+        opacity(visible ? 1 : 0).allowsHitTesting(visible).accessibilityHidden(!visible)
+    }
+
+    /// `.help()` doesn't show its tooltip on controls inside a List row here, so the tip is set on an AppKit view.
+    func tooltip(_ text: String) -> some View {
+        overlay(Tooltip(text: text))
+    }
+}
+
+private struct Tooltip: NSViewRepresentable {
+    let text: String
+
+    func makeNSView(context: Context) -> NSView { ClickThroughView() }
+    func updateNSView(_ view: NSView, context: Context) { view.toolTip = text }
+
+    /// Shows a tooltip but lets clicks reach the button underneath.
+    private final class ClickThroughView: NSView {
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
     }
 }

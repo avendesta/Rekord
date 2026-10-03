@@ -5,7 +5,7 @@ Each release's notes come from its `## <version>` section here, so add one befor
 ## 1.1.0
 - **Transcripts.** On macOS 26 or later, each new recording gets a `transcript.txt`, made on your Mac with Apple's speech model. With the microphone included, lines are labelled **Me** (your microphone) and **Others** (the meeting audio). Open it from the Recordings list.
 - Choose the language, hide the timestamps, or turn automatic transcription off, in Settings > Transcription. Older recordings have a Transcribe button in the Recordings list.
-- **Recordings window.** Quieter rows grouped by day, Finder and Trash on hover or right-click, and bulk delete: select several recordings (⌘-click, ⇧-click, ⌘A) and press Delete, or choose Delete All Recordings… from the ••• menu. Every delete asks first and goes to the Trash.
+- **Recordings window.** Quieter rows grouped by day, Finder and Trash on hover or right-click, and bulk delete: select several recordings (⌘-click, ⇧-click, ⌘A) and press Delete. Every delete asks first and goes to the Trash.
 - **Settings** is now four tabs (General, Audio, Transcription, Privacy), and the Privacy tab shows the state of each permission.
 - Your audio still never leaves your Mac. macOS may download a language model from Apple the first time.
 

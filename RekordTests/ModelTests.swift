@@ -39,12 +39,10 @@ final class RecordingSectionTests: XCTestCase {
     }
 
     func testTrashPromptsNameWhatWillGo() {
-        XCTAssertEqual(RecordingsWindowView.trashPrompt(count: 1, all: false, single: "Oct 3").title, "Move This Recording to Trash?")
-        XCTAssertEqual(RecordingsWindowView.trashPrompt(count: 3, all: false, single: "").title, "Move 3 Recordings to Trash?")
-        let all = RecordingsWindowView.trashPrompt(count: 11, all: true, single: "")
-        XCTAssertEqual(all.title, "Move All 11 Recordings to Trash?")
-        XCTAssertEqual(all.button, "Move All to Trash")
-        XCTAssertTrue(all.text.contains("transcript"))
+        XCTAssertEqual(RecordingsWindowView.trashPrompt(count: 1, single: "Oct 3").title, "Move This Recording to Trash?")
+        let several = RecordingsWindowView.trashPrompt(count: 3, single: "")
+        XCTAssertEqual(several.title, "Move 3 Recordings to Trash?")
+        XCTAssertTrue(several.text.contains("transcript"))
     }
 
     func testRecordingsAreGroupedByDayInOrder() {
