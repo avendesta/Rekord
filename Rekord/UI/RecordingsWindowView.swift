@@ -118,6 +118,7 @@ struct RecordingsWindowView: View {
             transcript: transcriptState(of: recording),
             onTranscribe: { store.transcribe(recording) },
             onOpenTranscript: { store.openTranscript(recording) },
+            onCopyTranscript: { store.copyTranscript(recording) },
             onRename: { store.rename(recording, to: $0) },
             onReveal: { store.reveal(recording) },
             onDelete: { trash(recording) }

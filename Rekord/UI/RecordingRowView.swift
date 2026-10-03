@@ -12,6 +12,7 @@ struct RecordingRowView: View {
     var transcript: TranscriptState?
     var onTranscribe: () -> Void = {}
     var onOpenTranscript: () -> Void = {}
+    var onCopyTranscript: () -> Void = {}
     var onRename: (String) -> Void = { _ in }
     let onReveal: () -> Void
     /// Not confirmed: the window offers Undo.
@@ -93,7 +94,9 @@ struct RecordingRowView: View {
             case .unavailable: EmptyView()
             }
             switch transcript {
-            case .ready?: Button("Open Transcript", action: onOpenTranscript)
+            case .ready?:
+                Button("Open Transcript", action: onOpenTranscript)
+                Button("Copy Transcript", action: onCopyTranscript)  // only here: it isn't worth a button on every row
             case .notStarted?, .failed?: Button("Transcribe", action: onTranscribe)
             default: EmptyView()
             }

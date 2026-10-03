@@ -154,6 +154,14 @@ final class RecordingStore: ObservableObject {
         reload()
     }
 
+    /// Puts the transcript on the clipboard under a short header, so it explains itself when
+    /// pasted somewhere else, such as into an AI assistant.
+    func copyTranscript(_ recording: Recording) {
+        guard let text = recording.transcriptForSharing() else { return NSSound.beep() }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+    }
+
     func openTranscript(_ recording: Recording) {
         NSWorkspace.shared.open(recording.transcriptURL)
     }
