@@ -22,7 +22,7 @@ struct RekordApp: App {
         MenuBarExtra {
             MenuBarView(session: session, store: store, hotkeyError: hotkeyPopup.registrationError)
         } label: {
-            Image(nsImage: Self.menuBarIcon(recording: session.isRecording, warning: session.systemSilenceWarning))
+            Image(nsImage: Self.menuBarIcon(recording: session.isRecording, warning: session.systemSilenceWarning, paused: session.isPaused))
         }
         .menuBarExtraStyle(.window)
 
@@ -41,7 +41,7 @@ struct RekordApp: App {
     /// dot turns red while recording, or orange while recording with no system audio arriving
     /// (usually a missing permission). The drawing handler runs per appearance, so it
     /// stays correct on light and dark menu bars (a template image can't be part-red).
-    private static func menuBarIcon(recording: Bool, warning: Bool) -> NSImage {
+    private static func menuBarIcon(recording: Bool, warning: Bool, paused: Bool) -> NSImage {
         let image = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { rect in
             let ringWidth: CGFloat = 1.5
             let ring = NSBezierPath(ovalIn: rect.insetBy(dx: 1 + ringWidth / 2, dy: 1 + ringWidth / 2))
@@ -50,11 +50,16 @@ struct RekordApp: App {
             ring.stroke()
 
             (recording ? (warning ? NSColor.systemOrange : NSColor.systemRed) : NSColor.labelColor).setFill()
-            NSBezierPath(ovalIn: rect.insetBy(dx: 5, dy: 5)).fill()
+            if paused {
+                // Two bars in place of the dot: paused is told by shape, not only by colour.
+                for x in [6.25, 9.75] { NSBezierPath(rect: NSRect(x: x, y: 5.5, width: 2, height: 7)).fill() }
+            } else {
+                NSBezierPath(ovalIn: rect.insetBy(dx: 5, dy: 5)).fill()
+            }
             return true
         }
         image.isTemplate = false
-        image.accessibilityDescription = recording ? (warning ? "Rekord, recording, no system audio" : "Rekord, recording") : "Rekord"
+        image.accessibilityDescription = paused ? "Rekord, paused" : recording ? (warning ? "Rekord, recording, no system audio" : "Rekord, recording") : "Rekord"
         return image
     }
 }

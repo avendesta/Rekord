@@ -15,6 +15,8 @@ final class MicRecorder {
     /// Host time (mach ticks) of the first delivered buffer; used for track sync.
     private(set) var firstBufferHostTime: UInt64?
     private(set) var sampleRate: Double = 0
+    /// Audio that arrives during a pause is left out of the file.
+    var pauseGate: PauseGate?
 
     #if DEBUG
     private var bufferCount = 0
@@ -54,7 +56,9 @@ final class MicRecorder {
             if self.firstBufferHostTime == nil { self.firstBufferHostTime = when.hostTime }
             self.writeQueue.async {
                 do {
-                    try self.audioFile?.write(from: buffer)
+                    for piece in self.pauseGate?.pieces(of: buffer, startingAt: when.hostTime) ?? [buffer] {
+                        try self.audioFile?.write(from: piece)
+                    }
                     #if DEBUG
                     self.bufferCount += 1
                     if self.bufferCount % 50 == 0 {

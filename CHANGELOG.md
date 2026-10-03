@@ -2,6 +2,9 @@
 
 Each release's notes come from its `## <version>` section here, so add one before bumping `MARKETING_VERSION`.
 
+## 1.4.0
+- **Pause and resume.** While recording, the menu shows **Pause** next to **Stop Recording**; paused time is left out, and you still get one recording. The timer shows the recorded time only, and the menu bar icon shows pause bars. In the shortcut popup, press **P**.
+
 ## 1.3.0
 - **Smaller recordings.** When a recording finishes, its audio is now converted to M4A, typically a tenth of the size or less, and playable anywhere. Recording itself still writes CAF, so a crash can't cost you a meeting; the conversion happens after the mix and transcript are made.
 - **This replaces the lossless originals for new recordings.** To keep them, choose **CAF (lossless)** under Settings > Audio > Format.

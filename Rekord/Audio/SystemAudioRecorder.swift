@@ -40,6 +40,8 @@ final class SystemAudioRecorder {
     private(set) var isRecording = false
     /// Host time (mach ticks) of the first delivered buffer; used for track sync.
     private(set) var firstBufferHostTime: UInt64?
+    /// Audio that arrives during a pause is left out of the file.
+    var pauseGate: PauseGate?
     private(set) var sampleRate: Double = 0
     /// True once any non-silent sample has arrived. A tap without the system audio
     /// permission delivers buffers of pure zeros, so this stays false in that case.
@@ -133,7 +135,9 @@ final class SystemAudioRecorder {
                 guard let buffer = AVAudioPCMBuffer(pcmFormat: format, bufferListNoCopy: inInputData, deallocator: nil) else { return }
                 if !self.sawAudio, Self.hasSignal(buffer) { self.sawAudioLock.withLock { $0 = true } }
                 do {
-                    try self.audioFile?.write(from: buffer)
+                    for piece in self.pauseGate?.pieces(of: buffer, startingAt: inInputTime.pointee.mHostTime) ?? [buffer] {
+                        try self.audioFile?.write(from: piece)
+                    }
                     #if DEBUG
                     self.bufferCount += 1
                     if self.bufferCount % 50 == 0 {

@@ -20,6 +20,7 @@ struct HotkeyPopupView: View {
             case .idle: chooser
             case .starting: startingContent
             case .recording(let since): recordingContent(since: since)
+            case .paused(let recorded): pausedContent(recorded: recorded)
             }
         }
         .padding(8)
@@ -61,6 +62,27 @@ struct HotkeyPopupView: View {
         if session.systemSilenceWarning {
             SilenceWarningView().padding(.horizontal, 8).padding(.bottom, 4)
         }
+        activeRows
+    }
+
+    @ViewBuilder
+    private func pausedContent(recorded: TimeInterval) -> some View {
+        header(String(format: "Paused · %02d:%02d", Int(recorded) / 60, Int(recorded) % 60))
+        activeRows
+    }
+
+    @ViewBuilder
+    private var activeRows: some View {
+        ChooserRow(
+            symbol: session.isPaused ? "play.fill" : "pause.fill",
+            title: session.isPaused ? "Resume" : "Pause",
+            subtitle: session.isPaused ? "Carry on with this recording" : "Leave out what follows until you resume",
+            hint: "P",
+            isSelected: false,
+            iconTint: .secondary,
+            onHover: {},
+            action: { session.isPaused ? session.resume() : session.pause() }
+        )
         ChooserRow(
             symbol: "stop.circle.fill",
             title: "Stop Recording",
@@ -289,8 +311,11 @@ final class HotkeyPopupController: ObservableObject {
             default: return event
             }
             return nil
-        case .recording where isReturn:
+        case .recording where isReturn, .paused where isReturn:
             stopRecording()
+            return nil
+        case .recording where event.keyCode == 35, .paused where event.keyCode == 35: // P
+            session.isPaused ? session.resume() : session.pause()
             return nil
         default:
             return event
