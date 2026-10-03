@@ -129,6 +129,7 @@ final class RecordingSession: ObservableObject {
         guard case .recording(let since) = state else { return }
         silenceMonitor?.cancel()
         systemSilenceWarning = false
+        UserDefaults.standard.set(systemRecorder.sawAudio ? "yes" : "no", forKey: AppSettings.systemAudioSeenKey)
         systemRecorder.stop()
         micRecorder.stop()
         state = .idle
