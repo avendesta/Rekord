@@ -28,11 +28,13 @@ struct RekordApp: App {
 
         Window("Recordings", id: "recordings") {
             RecordingsWindowView(store: store, session: session)
+                .background(TooltipsWhenInactive())
         }
         .defaultSize(width: 480, height: 340)
 
         Window("Rekord Settings", id: "settings") {
             SettingsView(hotkey: hotkeyPopup, store: store)
+                .background(TooltipsWhenInactive())
         }
         .windowResizability(.contentSize)
     }
@@ -61,5 +63,19 @@ struct RekordApp: App {
         image.isTemplate = false
         image.accessibilityDescription = paused ? "Rekord, paused" : recording ? (warning ? "Rekord, recording, no system audio" : "Rekord, recording") : "Rekord"
         return image
+    }
+}
+
+/// A menu bar app's windows often show while another app is still the active one, and macOS
+/// shows no tooltips in an inactive app unless the window asks for them.
+private struct TooltipsWhenInactive: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView { WindowFinder() }
+    func updateNSView(_ view: NSView, context: Context) {}
+
+    private final class WindowFinder: NSView {
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            window?.allowsToolTipsWhenApplicationIsInactive = true
+        }
     }
 }
