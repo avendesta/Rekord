@@ -61,8 +61,14 @@ final class AudioCompressorTests: XCTestCase {
         _ = try CombineEngine.combine(folder: folder, metadata: metadata(mic: true))
         XCTAssertTrue(AudioCompressor.needsCompression(folder: folder))
 
+        // A name given while the audio was being converted must survive the session.json rewrite.
+        var renamed = metadata(mic: true)
+        renamed.name = "Standup"
+        try renamed.write(to: folder)
+
         try AudioCompressor.compress(folder: folder, metadata: metadata(mic: true))
 
+        XCTAssertEqual(try RecordingSession.Metadata.read(from: folder).name, "Standup")
         XCTAssertEqual(try names(), ["combined.m4a", "mic.m4a", "session.json", "system.m4a"])
         XCTAssertFalse(AudioCompressor.needsCompression(folder: folder))
         let decoder = JSONDecoder()

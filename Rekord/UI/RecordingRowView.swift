@@ -2,8 +2,6 @@ import SwiftUI
 
 struct RecordingRowView: View {
     let recording: Recording
-    /// In a date section the day is in the header, so the row shows only the time.
-    var showsDate = true
     var playback: PlaybackState = .idle
     /// Only read by the scrubber of the row being played.
     var player: PlaybackController?
@@ -14,6 +12,7 @@ struct RecordingRowView: View {
     var transcript: TranscriptState?
     var onTranscribe: () -> Void = {}
     var onOpenTranscript: () -> Void = {}
+    var onRename: (String) -> Void = { _ in }
     let onReveal: () -> Void
     /// Not confirmed: the window offers Undo.
     let onDelete: () -> Void
@@ -28,6 +27,9 @@ struct RecordingRowView: View {
     }
 
     @State private var isHovered = false
+    @State private var isRenaming = false
+    @State private var draftName = ""
+    @FocusState private var nameFieldFocused: Bool
 
     /// Actions appear only for the row being pointed at.
     private var isActive: Bool { isHovered }
@@ -36,12 +38,21 @@ struct RecordingRowView: View {
         HStack(alignment: .top, spacing: 10) {
             playButton
             VStack(alignment: .leading, spacing: 2) {
-                Text(showsDate
-                     ? recording.startDate.formatted(date: .abbreviated, time: .shortened)
-                     : recording.startDate.formatted(date: .omitted, time: .shortened))
-                Text("\(duration) · \(recording.includesMicrophone ? "System + Microphone" : "System Audio")")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                title
+                // The day is in the section header and every recording has system audio, so the
+                // line only says what varies: the time (when a name took its place), length, and mic.
+                HStack(spacing: 4) {
+                    Text((recording.name == nil ? "" : "\(time) · ") + duration)
+                    if recording.includesMicrophone {
+                        Text("·")
+                        Image(systemName: "mic.fill")
+                            .imageScale(.small)
+                            .help("Microphone included")
+                            .accessibilityLabel("Microphone included")
+                    }
+                }
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
                 // Only the recording being listened to grows a scrubber; every other row stays compact.
                 if playback == .playing || playback == .paused, let player {
                     PlaybackBar(player: player, clock: player.clock)
@@ -52,7 +63,7 @@ struct RecordingRowView: View {
             Spacer(minLength: 8)
             if let activity {
                 ProgressView().controlSize(.small)
-                    .tooltip(activity)
+                    .help(activity)
                     .accessibilityLabel(activity)
             }
             // A fixed column, so the states sit in the same place on every row.
@@ -61,9 +72,9 @@ struct RecordingRowView: View {
             // File management stays out of the way until the row is pointed at.
             HStack(spacing: 6) {
                 Button(action: onReveal) { Label("Reveal in Finder", systemImage: "folder") }
-                    .tooltip("Reveal in Finder")
+                    .help("Reveal in Finder")
                 Button(action: onDelete) { Label("Move to Trash", systemImage: "trash") }
-                    .tooltip("Move to Trash")
+                    .help("Move to Trash")
                     .padding(.leading, 6)  // set apart from the everyday controls
             }
             .labelStyle(.iconOnly)
@@ -86,10 +97,45 @@ struct RecordingRowView: View {
             case .notStarted?, .failed?: Button("Transcribe", action: onTranscribe)
             default: EmptyView()
             }
+            Button("Rename…", action: beginRenaming)
             Button("Reveal in Finder", action: onReveal)
             Divider()
             Button("Move to Trash", role: .destructive, action: onDelete)
         }
+    }
+
+    /// The name, or the time when there is none; double-click (or Rename… in the menu) edits it in place.
+    @ViewBuilder
+    private var title: some View {
+        if isRenaming {
+            TextField("Name", text: $draftName)
+                .textFieldStyle(.plain)
+                .focused($nameFieldFocused)
+                .onSubmit { finishRenaming(save: true) }
+                .onExitCommand { finishRenaming(save: false) }
+                // Clicking elsewhere takes the focus away, which saves.
+                .onChange(of: nameFieldFocused) { if !nameFieldFocused { finishRenaming(save: true) } }
+        } else {
+            Text(recording.name ?? time)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .onTapGesture(count: 2, perform: beginRenaming)
+        }
+    }
+
+    private var time: String { recording.startDate.formatted(date: .omitted, time: .shortened) }
+
+    private func beginRenaming() {
+        draftName = recording.name ?? ""
+        isRenaming = true
+        // Focused a turn later, once the field exists; AppKit then selects its text.
+        DispatchQueue.main.async { nameFieldFocused = true }
+    }
+
+    private func finishRenaming(save: Bool) {
+        guard isRenaming else { return }
+        isRenaming = false
+        if save, draftName.trimmingCharacters(in: .whitespacesAndNewlines) != (recording.name ?? "") { onRename(draftName) }
     }
 
     private var playButton: some View {
@@ -104,7 +150,7 @@ struct RecordingRowView: View {
         }
         .buttonStyle(.borderless)
         .disabled(unavailable != nil)
-        .tooltip(unavailable ?? (playback == .playing ? "Pause" : "Play"))
+        .help(unavailable ?? (playback == .playing ? "Pause" : "Play"))
         .padding(.top, 3)
     }
 
@@ -113,7 +159,7 @@ struct RecordingRowView: View {
         switch transcript {
         case .notStarted?:
             Button(action: onTranscribe) { Label("Transcribe", systemImage: "text.badge.plus") }
-                .tooltip("Make a transcript of this recording")
+                .help("Make a transcript of this recording")
                 .showOnly(when: isActive)
         case .inProgress?:
             HStack(spacing: 5) {
@@ -125,12 +171,12 @@ struct RecordingRowView: View {
             Button(action: onOpenTranscript) { Label("Open Transcript", systemImage: "doc.text") }
                 .labelStyle(.iconOnly)
                 .buttonStyle(.borderless)
-                .tooltip("Open Transcript")
+                .help("Open Transcript")
                 .showOnly(when: isActive)
         case .failed(let reason)?:
             // A failure stays visible: it is a status, not just an action.
             Button(action: onTranscribe) { Label("Try Again", systemImage: "exclamationmark.triangle") }
-                .tooltip(reason)
+                .help(reason)
         case nil:
             EmptyView()
         }
@@ -146,23 +192,6 @@ private extension View {
     /// Keeps the view's space but hides it, also from clicks and VoiceOver (the context menu has the same actions).
     func showOnly(when visible: Bool) -> some View {
         opacity(visible ? 1 : 0).allowsHitTesting(visible).accessibilityHidden(!visible)
-    }
-
-    /// `.help()` doesn't show its tooltip on controls inside a List row here, so the tip is set on an AppKit view.
-    func tooltip(_ text: String) -> some View {
-        overlay(Tooltip(text: text))
-    }
-}
-
-private struct Tooltip: NSViewRepresentable {
-    let text: String
-
-    func makeNSView(context: Context) -> NSView { ClickThroughView() }
-    func updateNSView(_ view: NSView, context: Context) { view.toolTip = text }
-
-    /// Shows a tooltip but lets clicks reach the button underneath.
-    private final class ClickThroughView: NSView {
-        override func hitTest(_ point: NSPoint) -> NSView? { nil }
     }
 }
 

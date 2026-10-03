@@ -287,6 +287,24 @@ final class StorageTests: XCTestCase {
         XCTAssertTrue(store.compressible.isEmpty)
     }
 
+    func testRenamingChangesOnlyTheDisplayName() throws {
+        try writeSession("2026-09-20_10-00-00", start: "2026-09-20T10:00:00Z", in: root)
+        UserDefaults.standard.set(root.path, forKey: AppSettings.outputFolderKey)
+        let store = RecordingStore()
+        store.reload()
+        XCTAssertNil(store.recordings[0].name)  // older session files have no name
+
+        store.rename(store.recordings[0], to: "  Weekly planning meeting \n")
+        XCTAssertEqual(store.recordings[0].name, "Weekly planning meeting")
+        XCTAssertEqual(store.recordings[0].folder.lastPathComponent, "2026-09-20_10-00-00")  // the folder is untouched
+        XCTAssertEqual(store.recordings[0].duration, 5)
+
+        store.rename(store.recordings[0], to: "   ")  // an empty name goes back to the time
+        XCTAssertNil(store.recordings[0].name)
+        let json = try String(contentsOf: store.recordings[0].folder.appendingPathComponent("session.json"), encoding: .utf8)
+        XCTAssertFalse(json.contains("\"name\""))
+    }
+
     func testStoreIsEmptyWhenTheFolderDoesNotExist() {
         UserDefaults.standard.set(root.appendingPathComponent("missing").path, forKey: AppSettings.outputFolderKey)
         let store = RecordingStore()

@@ -8,9 +8,6 @@ struct RecordingsWindowView: View {
     @State private var undoable: [RecordingStore.Trashed] = []
     @State private var undoTimeout: Task<Void, Never>?
 
-    /// A short list reads fine as it is; day headers only earn their space once it grows.
-    static let groupingThreshold = 8
-
     var body: some View {
         VStack(spacing: 0) {
             if let error = store.combineError {
@@ -23,18 +20,33 @@ struct RecordingsWindowView: View {
                     Text("Start a recording from the menu bar or press \(AppSettings.hotkey.display).")
                 }
             } else {
-                List {
-                    if store.recordings.count < Self.groupingThreshold {
-                        ForEach(store.recordings) { row($0, showsDate: true) }
-                    } else {
+                // A plain scrolling stack, not a List: tooltips don't appear on controls inside List
+                // rows, and nothing here needs a List's selection or editing.
+                ScrollView {
+                    // Always grouped by day: the header carries the date, so rows only need the time.
+                    LazyVStack(alignment: .leading, spacing: 2, pinnedViews: .sectionHeaders) {
                         ForEach(Self.sections(of: store.recordings), id: \.title) { section in
-                            Section(section.title) {
-                                ForEach(section.recordings) { row($0, showsDate: false) }
+                            Section {
+                                ForEach(section.recordings) { row($0) }
+                            } header: {
+                                Text(section.title)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal, 6)
+                                    .padding(.top, 10)
+                                    .padding(.bottom, 4)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(.background)  // rows scroll underneath a pinned header
+                                    .accessibilityAddTraits(.isHeader)
                             }
                         }
                     }
+                    .padding(.horizontal, 10)
+                    .padding(.bottom, 10)
                 }
-                .listStyle(.inset)
+                // Clicking away from a name being edited ends the edit, which saves it.
+                .contentShape(Rectangle())
+                .onTapGesture { NSApp.keyWindow?.makeFirstResponder(nil) }
             }
         }
         .frame(minWidth: 400, minHeight: 220)
@@ -95,10 +107,9 @@ struct RecordingsWindowView: View {
     }
 
 
-    private func row(_ recording: Recording, showsDate: Bool) -> some View {
+    private func row(_ recording: Recording) -> some View {
         RecordingRowView(
             recording: recording,
-            showsDate: showsDate,
             playback: playbackState(of: recording),
             player: player,
             onTogglePlay: { withAnimation(.easeInOut(duration: 0.15)) { player.toggle(recording) } },
@@ -107,11 +118,11 @@ struct RecordingsWindowView: View {
             transcript: transcriptState(of: recording),
             onTranscribe: { store.transcribe(recording) },
             onOpenTranscript: { store.openTranscript(recording) },
+            onRename: { store.rename(recording, to: $0) },
             onReveal: { store.reveal(recording) },
             onDelete: { trash(recording) }
         )
         .frame(maxWidth: 640, alignment: .leading)
-        .listRowSeparator(.hidden)
     }
 
     private func playbackState(of recording: Recording) -> RecordingRowView.PlaybackState {

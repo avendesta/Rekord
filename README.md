@@ -96,7 +96,7 @@ Press the shortcut again during a recording to see the elapsed time, with **Paus
 
 Everyone on the other end of a call is "Others"; Rekord doesn't tell them apart. Pick the language, leave out the timestamps, or turn the automatic part off, in **Settings > Transcription**.
 
-**Find your recordings** under **Recent Recordings** in the menu. From there you can play a recording, open its transcript, reveal it in Finder or move it to the Trash. Deleted recordings go to the Trash, with an **Undo** for a few seconds. When a recording includes the microphone, Rekord also mixes both tracks into one file for you, a moment after you stop.
+**Find your recordings** under **Recent Recordings** in the menu, grouped by day. Double-click a recording's time to give it a name; the name is a label in Rekord only, and the files on disk keep their names. From there you can play a recording, open its transcript, reveal it in Finder or move it to the Trash. Deleted recordings go to the Trash, with an **Undo** for a few seconds. When a recording includes the microphone, Rekord also mixes both tracks into one file for you, a moment after you stop.
 
 Each recording is a folder in `~/Documents/Rekord/` (or the folder you chose in Settings), named by start time:
 
