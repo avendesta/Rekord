@@ -50,17 +50,17 @@ struct SettingsView: View {
         microphoneStatus = AVCaptureDevice.authorizationStatus(for: .audio)
     }
 
-    private func note(_ text: String) -> some View {
-        Text(text).font(.caption).foregroundStyle(.secondary)
-    }
-
     // MARK: General
 
     private var general: some View {
         Form {
             Section {
-                Toggle("Launch at login", isOn: Binding(get: { launchAtLogin }, set: setLaunchAtLogin))
-                note("Keeps Rekord available from the menu bar.")
+                // A second Text in a label is its explanation: it sits under the name in the same
+                // row, where a row of its own would look like one more setting.
+                Toggle(isOn: Binding(get: { launchAtLogin }, set: setLaunchAtLogin)) {
+                    Text("Launch at login")
+                    Text("Keeps Rekord available from the menu bar.")
+                }
                 if needsApproval {
                     Text("Approve Rekord in System Settings > General > Login Items.")
                         .font(.caption)
@@ -92,7 +92,7 @@ struct SettingsView: View {
             }
 
             Section {
-                LabeledContent("Save recordings to") {
+                LabeledContent {
                     HStack {
                         Label(Self.shortPath(AppSettings.outputFolder), systemImage: "folder")
                             .lineLimit(1)
@@ -112,8 +112,10 @@ struct SettingsView: View {
                         }
                         .disabled(session.isRecording || session.state == .starting)
                     }
+                } label: {
+                    Text("Save recordings to")
+                    if session.isRecording { Text("Stop the current recording to change this folder.") }
                 }
-                if session.isRecording { note("The folder can be changed once the recording has stopped.") }
             }
         }
     }
@@ -129,7 +131,7 @@ struct SettingsView: View {
     private var audio: some View {
         Form {
             Section("Microphone") {
-                Picker("Input device", selection: $inputDeviceUID) {
+                Picker(selection: $inputDeviceUID) {
                     Text("System Default").tag("")
                     ForEach(inputDevices) { device in
                         Text(device.name).tag(device.uid)
@@ -138,44 +140,49 @@ struct SettingsView: View {
                     if !inputDeviceUID.isEmpty, !inputDevices.contains(where: { $0.uid == inputDeviceUID }) {
                         Text("Disconnected device (using default)").tag(inputDeviceUID)
                     }
+                } label: {
+                    Text("Input device")
+                    Text("This doesn't change your Mac's system input device.")
                 }
-                note("Used only by Rekord.")
                 Toggle("Include microphone by default", isOn: $includeMicrophoneDefault)
-                note("Default for new recordings.")
             }
 
             Section("Recordings") {
-                Picker("Format", selection: $compressRecordings) {
+                Picker(selection: $compressRecordings) {
                     Text("M4A (smaller)").tag(true)
                     Text("CAF (lossless)").tag(false)
+                } label: {
+                    Text("Format")
+                    Text("Recordings are captured as CAF. When M4A is selected, Rekord converts them after recording ends.")
                 }
-                note("Recordings are saved as CAF and, with M4A, converted when they finish.")
                 LabeledContent(compressSummary) {
-                    Button("Compress to M4A…", action: confirmCompressAll)
+                    Button("Convert to M4A…", action: confirmCompressAll)
                         .disabled(store.compressible.isEmpty || !store.pendingCompression.isEmpty)
                 }
-                Picker("Delete audio after", selection: $audioRetentionDays) {
+                Picker(selection: $audioRetentionDays) {
                     ForEach([7, 14, 30, 90], id: \.self) { Text("\($0) days").tag($0) }
                     Text("Never").tag(0)
+                } label: {
+                    Text("Delete audio after")
+                    Text("Moves old audio to the Trash. The transcript and name are kept, and recordings without a transcript keep their audio.")
                 }
-                note("Moves old audio to the Trash. The transcript and name are kept, and recordings without a transcript keep their audio.")
             }
         }
         .onAppear { store.reload() }
     }
 
     private var compressSummary: String {
-        if !store.pendingCompression.isEmpty { return "Compressing \(store.pendingCompression.count)…" }
+        if !store.pendingCompression.isEmpty { return "Converting \(store.pendingCompression.count)…" }
         let count = store.compressible.count
-        return count == 0 ? "No CAF recordings to compress" : "\(count) CAF recording\(count == 1 ? "" : "s")"
+        return count == 0 ? "No CAF recordings to convert" : "\(count) CAF recording\(count == 1 ? "" : "s")"
     }
 
     private func confirmCompressAll() {
         let count = store.compressible.count
         let alert = NSAlert()
-        alert.messageText = "Compress \(count) Recording\(count == 1 ? "" : "s") to M4A?"
+        alert.messageText = "Convert \(count) Recording\(count == 1 ? "" : "s") to M4A?"
         alert.informativeText = "The audio files are converted to M4A, which is much smaller, and the lossless CAF originals are deleted. This can't be undone."
-        alert.addButton(withTitle: "Compress")
+        alert.addButton(withTitle: "Convert")
         alert.addButton(withTitle: "Cancel")
         if alert.runModal() == .alertFirstButtonReturn { store.compressAll() }
     }
@@ -196,11 +203,15 @@ struct SettingsView: View {
                         }
                     }
                     Toggle("Show timestamps in transcripts", isOn: $transcriptTimestamps)
-                    Toggle("Include microphone in transcripts", isOn: $transcriptIncludesMicrophone)
-                    note("Turn off if your microphone picks up the meeting audio.")
+                    Toggle(isOn: $transcriptIncludesMicrophone) {
+                        Text("Include microphone in transcripts")
+                        Text("Turn off if your microphone picks up the meeting audio and lines appear twice.")
+                    }
                 }
                 Section {
-                    note("Transcription is performed entirely on this Mac. Audio is never uploaded.\nTranscripts are saved alongside the recording.")
+                    Text("Transcription is performed entirely on this Mac. Audio is never uploaded.\nTranscripts are saved alongside the recording.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
             .task {
@@ -230,17 +241,21 @@ struct SettingsView: View {
                     }
                 }
                 Button("Open Microphone Settings…") { PermissionsManager.openSettings(for: .microphone) }
+            }
 
-                // macOS has no way to ask whether System Audio Recording is allowed, so this reports
-                // what the last recording actually received.
-                LabeledContent("System Audio") {
+            // Apart from the real permission above: macOS has no way to ask whether System Audio
+            // Recording is allowed, so this is what the last recording actually received, and says so.
+            Section {
+                LabeledContent {
                     switch systemAudioSeen {
-                    case "yes": status("Allowed", "checkmark.circle.fill", .green)
-                    case "no": status("No Audio in Last Recording", "exclamationmark.circle", .orange)
+                    case "yes": status("Audio Detected", "checkmark.circle.fill", .green)
+                    case "no": status("No Audio Detected", "exclamationmark.circle", .orange)
                     default: status("Not Checked Yet", "questionmark.circle", .secondary)
                     }
+                } label: {
+                    Text("System Audio")
+                    Text("macOS doesn't report this permission, so Rekord goes by whether your last recording received system audio.")
                 }
-                .help("macOS doesn't report this permission, so Rekord goes by whether the last recording received system audio.")
                 Button("Open System Audio Settings…") { PermissionsManager.openSettings(for: .systemAudio) }
             }
         }
