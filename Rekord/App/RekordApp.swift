@@ -21,6 +21,7 @@ struct RekordApp: App {
     var body: some Scene {
         MenuBarExtra {
             MenuBarView(session: session, store: store, hotkeyError: hotkeyPopup.registrationError)
+                .background(TooltipsWhenInactive())
         } label: {
             Image(nsImage: Self.menuBarIcon(recording: session.isRecording, warning: session.systemSilenceWarning, paused: session.isPaused))
         }

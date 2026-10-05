@@ -149,7 +149,7 @@ final class RecordingSession: ObservableObject {
             if case SystemAudioRecorder.RecorderError.tapCreationFailed = error { permissionIssue = .systemAudio }
             if case SystemAudioRecorder.RecorderError.sourceAppNotRunning = error, let sourceName {
                 // Never fall back to recording everything: the user asked for this app only.
-                lastError = "\(sourceName) isn't running. Open it, or set Source to All Audio."
+                lastError = "\(sourceName) isn't running. Open it, or set Source to All System Audio."
             } else {
                 lastError = "Failed to start recording: \(error.localizedDescription)"
             }

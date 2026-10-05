@@ -16,10 +16,11 @@ struct MenuBarView: View {
                 .font(.headline)
                 .padding(.bottom, 10)
 
-            // Fixed minimum height so the popup doesn't jump between Ready / Recording / Warning.
+            // Only as tall as what it says: every state without a problem is one line, so the popup
+            // grows only to show one.
             StatusView(session: session)
-                .frame(maxWidth: .infinity, minHeight: 40, alignment: .topLeading)
-                .padding(.bottom, 10)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .padding(.bottom, 16)
 
             primaryButton
                 .padding(.bottom, 14)
@@ -37,7 +38,7 @@ struct MenuBarView: View {
                     .padding(.top, 10)
             }
 
-            Divider().padding(.vertical, 10)
+            Divider().padding(.vertical, 6)
 
             MenuRow(title: "Recent Recordings", systemImage: "clock.arrow.circlepath",
                     trailing: "\(store.recordings.count)", showsChevron: true) {
@@ -49,9 +50,9 @@ struct MenuBarView: View {
                 NSApp.activate(ignoringOtherApps: true)
             }
 
-            Divider().padding(.vertical, 10)
+            Divider().padding(.vertical, 6)
 
-            MenuRow(title: "Quit Rekord", isSecondary: true) {
+            MenuRow(title: "Quit Rekord") {
                 NSApplication.shared.terminate(nil)
             }
         }
@@ -61,6 +62,9 @@ struct MenuBarView: View {
         // The popup view outlives each opening, so refresh when its window comes forward.
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in refresh() }
     }
+
+    /// What is recorded can't change once a recording has begun.
+    private var isLocked: Bool { session.isRecording || session.state == .starting }
 
     private func refresh() {
         store.reload()
@@ -113,7 +117,7 @@ struct MenuBarView: View {
             Text("Source")
             Spacer(minLength: 8)
             Picker("Source", selection: $sourceBundleID) {
-                Text("All Audio").tag("")
+                Text("All System Audio").tag("")
                 ForEach(sourceApps) { app in
                     Text(app.name).tag(app.bundleID)
                 }
@@ -125,8 +129,10 @@ struct MenuBarView: View {
             .labelsHidden()
             .controlSize(.small)
             .frame(maxWidth: 150, alignment: .trailing)
-            .disabled(session.isRecording || session.state == .starting)
+            .disabled(isLocked)
         }
+        // On the row, not the control: it says why the control is off.
+        .help(isLocked ? "Source can't be changed while recording." : "")
     }
 
     private var microphoneRow: some View {
@@ -157,8 +163,9 @@ struct MenuBarView: View {
                 .labelsHidden()
                 .toggleStyle(.switch)
                 .controlSize(.small)
-                .disabled(session.isRecording || session.state == .starting)
+                .disabled(isLocked)
         }
+        .help(isLocked ? "Microphone can't be changed while recording." : "")
     }
 }
 
@@ -172,14 +179,16 @@ private struct StatusView: View {
         case .starting:
             status("circle.dotted", "Starting recording…", tint: .secondary)
         case .recording(let since):
-            if session.systemSilenceWarning {
-                // Cause unknown: nothing may be playing, or the permission may be off.
-                warning(session.activeSourceApp.map { "Not receiving audio from \($0)" } ?? "Not receiving system audio",
-                        actionTitle: "Check permissions…", issue: .systemAudio)
-            } else {
+            VStack(alignment: .leading, spacing: 6) {
                 TimelineView(.periodic(from: since, by: 1)) { context in
                     let seconds = Int(context.date.timeIntervalSince(since))
                     status("circle.fill", String(format: "Recording · %02d:%02d", seconds / 60, seconds % 60), tint: .red)
+                }
+                // Under the timer, not in its place: the recording is still running.
+                if session.systemSilenceWarning {
+                    // Cause unknown: nothing may be playing, or the permission may be off.
+                    warning(session.activeSourceApp.map { "Not receiving audio from \($0)" } ?? "Not receiving system audio",
+                            actionTitle: "Check Permissions…", issue: .systemAudio)
                 }
             }
         case .paused(let recorded):
@@ -191,7 +200,8 @@ private struct StatusView: View {
             } else if let error = session.lastError {
                 warning("Recording problem", detail: error)
             } else {
-                status("circle", "Ready to record", tint: .secondary)
+                // Quiet: nothing is happening, and the colours are kept for when something is.
+                status("circle", "Ready to record", tint: .secondary).foregroundStyle(.secondary)
             }
         }
     }
@@ -235,7 +245,6 @@ private struct MenuRow: View {
     var systemImage: String?
     var trailing: String?
     var showsChevron = false
-    var isSecondary = false
     let action: () -> Void
     @State private var hovering = false
 
@@ -248,7 +257,6 @@ private struct MenuRow: View {
                         .foregroundStyle(.secondary)
                 }
                 Text(title)
-                    .foregroundStyle(isSecondary ? .secondary : .primary)
                 Spacer()
                 if let trailing {
                     Text(trailing).foregroundStyle(.secondary)
