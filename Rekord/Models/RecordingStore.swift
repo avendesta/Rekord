@@ -231,7 +231,9 @@ final class RecordingStore: ObservableObject {
                 // A recording trashed mid-mix fails too, and that is nothing to report.
                 if case .failure(let error) = result, FileManager.default.fileExists(atPath: recording.folder.path) {
                     self.failed.insert(recording.id)
-                    self.combineError = error.localizedDescription
+                    let what = recording.name.map { "\"\($0)\"" }
+                        ?? "the recording from \(recording.startDate.formatted(date: .abbreviated, time: .shortened))"
+                    self.combineError = "Couldn't prepare \(what) for playback. \(error.localizedDescription)"
                 }
                 self.reload()
             }

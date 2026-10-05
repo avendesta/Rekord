@@ -15,7 +15,7 @@ struct RecordingsWindowView: View {
             }
             if store.recordings.isEmpty {
                 ContentUnavailableView {
-                    Label("No Recordings Yet", systemImage: "waveform")
+                    Label("No Recordings", systemImage: "waveform")
                 } description: {
                     Text("Start a recording from the menu bar or press \(AppSettings.hotkey.display).")
                 }
@@ -113,8 +113,8 @@ struct RecordingsWindowView: View {
             playback: playbackState(of: recording),
             player: player,
             onTogglePlay: { withAnimation(.easeInOut(duration: 0.15)) { player.toggle(recording) } },
-            activity: store.combining.contains(recording.id) ? "Mixing system audio and microphone…"
-                : store.compressing == recording.id ? "Compressing to M4A…" : nil,
+            activity: store.combining.contains(recording.id) ? "Preparing…"
+                : store.compressing == recording.id ? "Compressing…" : nil,
             transcript: transcriptState(of: recording),
             onTranscribe: { store.transcribe(recording) },
             onOpenTranscript: { store.openTranscript(recording) },
@@ -129,10 +129,10 @@ struct RecordingsWindowView: View {
     private func playbackState(of recording: Recording) -> RecordingRowView.PlaybackState {
         if session.isRecording { return .unavailable("Playback is unavailable while recording.") }
         guard recording.hasAudio else {
-            return .unavailable(recording.hasTranscript ? "The audio has been removed. The transcript is kept." : "Audio file unavailable")
+            return .unavailable(recording.hasTranscript ? "Audio was removed. The transcript is still available." : "Audio file can't be found.")
         }
         guard recording.playableURL != nil else {
-            return .unavailable(recording.includesMicrophone && !recording.isCombined ? "Still preparing this recording…" : "This recording has no audio.")
+            return .unavailable(recording.includesMicrophone && !recording.isCombined ? "Still preparing this recording…" : "This recording contains no playable audio.")
         }
         guard player.activeID == recording.id else { return .idle }
         return player.isPlaying ? .playing : .paused
@@ -141,7 +141,8 @@ struct RecordingsWindowView: View {
     private func transcriptState(of recording: Recording) -> RecordingRowView.TranscriptState? {
         // Nothing to offer where transcription isn't available or the audio is gone.
         guard Transcriber.isSupported, recording.hasAudio || recording.hasTranscript else { return nil }
-        if store.transcriptQueue.contains(recording.id) { return .inProgress }
+        // Transcripts are made one at a time; the first in the queue is the one running.
+        if let place = store.transcriptQueue.firstIndex(of: recording.id) { return place == 0 ? .inProgress : .queued }
         if let reason = store.transcriptErrors[recording.id] { return .failed(reason) }
         return recording.hasTranscript ? .ready : .notStarted
     }
