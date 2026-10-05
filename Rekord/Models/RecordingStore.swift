@@ -228,7 +228,8 @@ final class RecordingStore: ObservableObject {
             let result = Result { try CombineEngine.combine(folder: recording.folder, metadata: recording.metadata) }
             await MainActor.run {
                 self.combining.remove(recording.id)
-                if case .failure(let error) = result {
+                // A recording trashed mid-mix fails too, and that is nothing to report.
+                if case .failure(let error) = result, FileManager.default.fileExists(atPath: recording.folder.path) {
                     self.failed.insert(recording.id)
                     self.combineError = error.localizedDescription
                 }
@@ -269,6 +270,7 @@ final class RecordingStore: ObservableObject {
         for item in trashed {
             do {
                 try FileManager.default.moveItem(at: item.inTrash, to: item.original)
+                failed.remove(item.original)
             } catch {
                 allRestored = false
             }

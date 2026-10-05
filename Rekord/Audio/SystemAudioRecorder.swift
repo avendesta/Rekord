@@ -214,8 +214,10 @@ final class SystemAudioRecorder {
             mScope: kAudioObjectPropertyScopeGlobal,
             mElement: kAudioObjectPropertyElementMain
         )
-        var description = source.tap
-        let status = AudioObjectSetPropertyData(tapID, &address, 0, nil, UInt32(MemoryLayout<CATapDescription>.size), &description)
+        // The property's value is the description object itself, passed as a pointer to the reference.
+        let status = withUnsafePointer(to: source.tap) {
+            AudioObjectSetPropertyData(tapID, &address, 0, nil, UInt32(MemoryLayout<CATapDescription>.size), $0)
+        }
         #if DEBUG
         print("[Rekord][SystemAudioRecorder] tap now follows processes \(processes) (status \(status))")
         #endif
