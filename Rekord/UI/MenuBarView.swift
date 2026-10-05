@@ -7,6 +7,8 @@ struct MenuBarView: View {
     var hotkeyError: String?
     @Environment(\.openWindow) private var openWindow
     @State private var micName = ""
+    @AppStorage(AppSettings.audioSourceBundleIDKey) private var sourceBundleID = ""
+    @State private var sourceApps: [AudioSourceApps.App] = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -21,6 +23,9 @@ struct MenuBarView: View {
 
             primaryButton
                 .padding(.bottom, 14)
+
+            sourceRow
+                .padding(.bottom, 10)
 
             microphoneRow
 
@@ -60,6 +65,7 @@ struct MenuBarView: View {
     private func refresh() {
         store.reload()
         micName = AudioInputDevices.currentInputName()
+        sourceApps = AudioSourceApps.all()
     }
 
     @ViewBuilder
@@ -95,6 +101,31 @@ struct MenuBarView: View {
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
             .disabled(session.state == .starting)
+        }
+    }
+
+    /// What the system track holds: everything the Mac plays, or one app.
+    private var sourceRow: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "speaker.wave.2.fill")
+                .frame(width: 18)
+                .foregroundStyle(.secondary)
+            Text("Source")
+            Spacer(minLength: 8)
+            Picker("Source", selection: $sourceBundleID) {
+                Text("All Audio").tag("")
+                ForEach(sourceApps) { app in
+                    Text(app.name).tag(app.bundleID)
+                }
+                // A chosen app that's closed right now: keep it selectable so the choice isn't lost.
+                if !sourceBundleID.isEmpty, !sourceApps.contains(where: { $0.bundleID == sourceBundleID }) {
+                    Text("\(AudioSourceApps.name(forBundleID: sourceBundleID)) (not running)").tag(sourceBundleID)
+                }
+            }
+            .labelsHidden()
+            .controlSize(.small)
+            .frame(maxWidth: 150, alignment: .trailing)
+            .disabled(session.isRecording || session.state == .starting)
         }
     }
 
@@ -143,7 +174,8 @@ private struct StatusView: View {
         case .recording(let since):
             if session.systemSilenceWarning {
                 // Cause unknown: nothing may be playing, or the permission may be off.
-                warning("Not receiving system audio", actionTitle: "Check permissions…", issue: .systemAudio)
+                warning(session.activeSourceApp.map { "Not receiving audio from \($0)" } ?? "Not receiving system audio",
+                        actionTitle: "Check permissions…", issue: .systemAudio)
             } else {
                 TimelineView(.periodic(from: since, by: 1)) { context in
                     let seconds = Int(context.date.timeIntervalSince(since))
@@ -240,9 +272,12 @@ private struct MenuRow: View {
 
 /// Shown in the hotkey popup while recording when no system audio has arrived.
 struct SilenceWarningView: View {
+    /// The one app being recorded, if not everything.
+    var source: String?
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("No system audio detected yet. If something is playing, allow Rekord under System Audio Recording.")
+            Text("No \(source.map { "audio from \($0)" } ?? "system audio") detected yet. If something is playing, allow Rekord under System Audio Recording.")
                 .font(.caption)
                 .foregroundStyle(.orange)
             Button("Open Privacy Settings…") { PermissionsManager.openSettings(for: .systemAudio) }

@@ -11,6 +11,8 @@ final class ShortcutChooserModel: ObservableObject {
 struct HotkeyPopupView: View {
     @ObservedObject var session: RecordingSession
     @ObservedObject var model: ShortcutChooserModel
+    /// The one app chosen as the source, if not everything, as of when the popup opened.
+    var source: (name: String, isRunning: Bool)?
     let onChoose: (RecordingMode) -> Void
     let onStop: () -> Void
 
@@ -31,7 +33,15 @@ struct HotkeyPopupView: View {
 
     @ViewBuilder
     private var chooser: some View {
-        header("Start Recording")
+        header(source.map { "Start Recording · \($0.name)" } ?? "Start Recording")
+        if let source, !source.isRunning {
+            Text("\(source.name) isn't running. Open it, or change Source in the menu.")
+                .font(.caption)
+                .foregroundStyle(.orange)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 8)
+                .padding(.bottom, 4)
+        }
         ForEach(RecordingMode.allCases) { mode in
             let micDenied = mode.includesMicrophone && PermissionsManager.microphoneDenied
             ChooserRow(
@@ -60,7 +70,7 @@ struct HotkeyPopupView: View {
             header(String(format: "Recording · %02d:%02d", seconds / 60, seconds % 60))
         }
         if session.systemSilenceWarning {
-            SilenceWarningView().padding(.horizontal, 8).padding(.bottom, 4)
+            SilenceWarningView(source: session.activeSourceApp).padding(.horizontal, 8).padding(.bottom, 4)
         }
         activeRows
     }
@@ -229,6 +239,9 @@ final class HotkeyPopupController: ObservableObject {
         let hosting = NSHostingView(rootView: HotkeyPopupView(
             session: session,
             model: chooserModel,
+            source: AppSettings.audioSourceBundleID.map {
+                (AudioSourceApps.name(forBundleID: $0), !AudioSourceApps.processObjects(forBundleID: $0).isEmpty)
+            },
             onChoose: { [weak self] mode in self?.choose(mode) },
             onStop: { [weak self] in self?.stopRecording() }
         ))

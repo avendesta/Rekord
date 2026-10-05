@@ -29,6 +29,8 @@ final class RecordingSession: ObservableObject {
         var micOffsetSeconds: Double?
         /// A name the user gave the recording. Display only: files and folders keep their names.
         var name: String? = nil
+        /// The one app the system track was recorded from; nil when it holds everything the Mac played.
+        var sourceApp: String? = nil
 
         /// The recording's `session.json`.
         static func read(from folder: URL) throws -> Metadata {
@@ -81,6 +83,8 @@ final class RecordingSession: ObservableObject {
     private let systemRecorder = SystemAudioRecorder()
     private let micRecorder = MicRecorder()
     private var activeIncludesMic = false
+    /// Name of the one app the current recording captures; nil when it captures everything.
+    private(set) var activeSourceApp: String?
     private var startedAt = Date()
     private let pauseGate = PauseGate()
     private(set) var lastSessionFolder: URL?
@@ -130,8 +134,10 @@ final class RecordingSession: ObservableObject {
         pauseGate.reset()
         systemRecorder.pauseGate = pauseGate
         micRecorder.pauseGate = pauseGate
+        let source = AppSettings.audioSourceBundleID
+        let sourceName = source.map(AudioSourceApps.name(forBundleID:))
         do {
-            try systemRecorder.start(to: folder.appendingPathComponent("system.caf"))
+            try systemRecorder.start(to: folder.appendingPathComponent("system.caf"), sourceBundleID: source)
             if includeMic {
                 try micRecorder.start(to: folder.appendingPathComponent("mic.caf"))
             }
@@ -141,12 +147,18 @@ final class RecordingSession: ObservableObject {
             micRecorder.stop()
             try? FileManager.default.removeItem(at: folder)
             if case SystemAudioRecorder.RecorderError.tapCreationFailed = error { permissionIssue = .systemAudio }
-            lastError = "Failed to start recording: \(error.localizedDescription)"
+            if case SystemAudioRecorder.RecorderError.sourceAppNotRunning = error, let sourceName {
+                // Never fall back to recording everything: the user asked for this app only.
+                lastError = "\(sourceName) isn't running. Open it, or set Source to All Audio."
+            } else {
+                lastError = "Failed to start recording: \(error.localizedDescription)"
+            }
             state = .idle
             return
         }
 
         activeIncludesMic = includeMic
+        activeSourceApp = sourceName
         lastSessionFolder = folder
         lastError = nil
         permissionIssue = nil
@@ -196,7 +208,8 @@ final class RecordingSession: ObservableObject {
             files: files,
             systemSampleRate: systemRecorder.sampleRate,
             micSampleRate: activeIncludesMic ? micRecorder.sampleRate : nil,
-            micOffsetSeconds: micOffset()
+            micOffsetSeconds: micOffset(),
+            sourceApp: activeSourceApp
         )
         do {
             try metadata.write(to: folder)

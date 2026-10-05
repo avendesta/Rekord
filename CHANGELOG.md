@@ -2,6 +2,12 @@
 
 Each release's notes come from its `## <version>` section here, so add one before bumping `MARKETING_VERSION`.
 
+## 1.7.0
+- **Record one app.** Choose an app under **Source** in the menu to record only its audio, such as your meeting app, and leave out everything else your Mac plays. **All Audio** is still the default, and the shortcut popup shows which source is set.
+- The app has to be open when you start. If it isn't, Rekord tells you instead of recording everything.
+- A meeting in a browser records every tab of that browser. Safari can't be chosen, because its audio comes from a shared system process.
+- `session.json` notes the app a recording was made from.
+
 ## 1.6.0
 - **Audio is now removed after 7 days.** Once a recording has a transcript and is more than a week old, its audio files are moved to the Trash; the transcript and the name stay. **This applies to recordings you already have**, the first time Rekord lists them after updating. Change the period, or choose Never, under Settings > Audio > Delete audio after. Recordings without a transcript always keep their audio.
 - **No more doubled lines.** With speakers, your microphone hears the meeting, and each sentence used to appear twice in the transcript. Rekord now leaves out a microphone line that repeats what the meeting audio said at the same moment. It cleans the transcript only, not the audio, and an echo the recogniser garbled can still slip through.

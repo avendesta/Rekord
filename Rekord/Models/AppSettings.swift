@@ -26,6 +26,7 @@ enum AppSettings {
     static let includeMicrophoneKey = "includeMicrophoneDefault"
     static let hotkeyKey = "hotkey"
     static let inputDeviceUIDKey = "inputDeviceUID"
+    static let audioSourceBundleIDKey = "audioSourceBundleID"
     static let lastRecordingModeKey = "lastRecordingMode"
     static let transcribeKey = "transcribeRecordings"
     static let compressKey = "compressRecordings"
@@ -134,6 +135,11 @@ enum AppSettings {
     /// UID of the chosen microphone; nil means follow the system default input.
     static var inputDeviceUID: String? {
         UserDefaults.standard.string(forKey: inputDeviceUIDKey).flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    /// Bundle ID of the one app to record; nil records everything the Mac plays.
+    static var audioSourceBundleID: String? {
+        UserDefaults.standard.string(forKey: audioSourceBundleIDKey).flatMap { $0.isEmpty ? nil : $0 }
     }
 
     static var hotkey: Hotkey {
