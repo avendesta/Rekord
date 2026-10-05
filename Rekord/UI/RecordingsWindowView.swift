@@ -6,7 +6,10 @@ struct RecordingsWindowView: View {
     @StateObject private var player = PlaybackController()
     /// The last deletion, while its Undo message is showing.
     @State private var undoable: [RecordingStore.Trashed] = []
-    @State private var undoTimeout: Task<Void, Never>?
+    /// When the Undo message goes away by itself; nil while the pointer rests on it, which holds
+    /// it open with `undoTimeLeft` still to run.
+    @State private var undoDeadline: Date?
+    @State private var undoTimeLeft: TimeInterval = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -69,6 +72,21 @@ struct RecordingsWindowView: View {
                 .background(.regularMaterial, in: Capsule())
                 .overlay(Capsule().strokeBorder(.separator))
                 .shadow(color: .black.opacity(0.12), radius: 6, y: 2)
+                .onHover { inside in
+                    if inside, let deadline = undoDeadline {
+                        undoTimeLeft = max(0, deadline.timeIntervalSinceNow)
+                        undoDeadline = nil
+                    } else if !inside, undoDeadline == nil {
+                        undoDeadline = Date().addingTimeInterval(undoTimeLeft)
+                    }
+                }
+                // Tied to the message: a new deadline restarts the wait, and the wait ends with the
+                // message, however it goes away.
+                .task(id: undoDeadline) {
+                    guard let undoDeadline else { return }
+                    try? await Task.sleep(for: .seconds(undoDeadline.timeIntervalSinceNow))
+                    if !Task.isCancelled { dismissUndo() }
+                }
                 .padding(.bottom, 14)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
@@ -84,25 +102,19 @@ struct RecordingsWindowView: View {
     /// be put back from the Trash in Finder.
     private func trash(_ recording: Recording) {
         if recording.id == player.activeID { player.stop() }
-        let trashed = store.moveToTrash([recording])
-
-        undoTimeout?.cancel()
-        withAnimation(.easeOut(duration: 0.2)) { undoable = trashed }  // empty if nothing was actually trashed
-        guard !trashed.isEmpty else { return }
-        undoTimeout = Task {
-            try? await Task.sleep(for: .seconds(7))
-            if !Task.isCancelled { withAnimation(.easeIn(duration: 0.2)) { undoable = [] } }
-        }
+        // One animation for both: the rows close the gap as the Undo message comes in.
+        withAnimation(.easeOut(duration: 0.2)) { undoable = store.moveToTrash([recording]) }  // empty if nothing was actually trashed
+        undoDeadline = Date().addingTimeInterval(7)
     }
 
     private func undo() {
         let items = undoable
         dismissUndo()
-        if !store.restore(items) { NSSound.beep() }
+        let restored = withAnimation(.easeOut(duration: 0.2)) { store.restore(items) }
+        if !restored { NSSound.beep() }
     }
 
     private func dismissUndo() {
-        undoTimeout?.cancel()
         withAnimation(.easeIn(duration: 0.2)) { undoable = [] }
     }
 
