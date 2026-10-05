@@ -135,7 +135,7 @@ Open **Settings…** from the menu. It has four tabs:
 - **Use headphones.** On speakers, the microphone also hears the meeting from the room, so it ends up on your mic track too. Rekord leaves those repeated lines out of the transcript, but they are still in the audio.
 - **The shortcut does nothing.** Rekord must be running (turn on *Launch at login*), and another app may already use that combination. Rekord shows a warning when it can't claim the shortcut; pick another one in Settings.
 - **Nothing is recorded from other people.** Check the System Audio permission above.
-- **Other sounds end up in the recording.** With **Source** on *All Audio*, Rekord records everything your Mac plays. Choose your meeting app as the source, or mute the audio you don't want.
+- **Other sounds end up in the recording.** With **Source** on *All System Audio*, Rekord records everything your Mac plays. Choose your meeting app as the source, or mute the audio you don't want.
 - Rekord doesn't detect meetings automatically. You start and stop recordings yourself. Check your local laws and get consent before recording other people.
 
 ## For developers
