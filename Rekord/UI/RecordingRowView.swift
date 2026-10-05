@@ -24,7 +24,7 @@ struct RecordingRowView: View {
 
     // No case named `none`: on an optional that would silently mean nil.
     enum TranscriptState: Equatable {
-        case notStarted, inProgress, ready, failed(String)
+        case notStarted, queued, inProgress, ready, failed(String)
     }
 
     @State private var isHovered = false
@@ -32,7 +32,7 @@ struct RecordingRowView: View {
     @State private var draftName = ""
     @FocusState private var nameFieldFocused: Bool
 
-    /// Actions appear only for the row being pointed at.
+    /// File actions appear only for the row being pointed at, and its transcript action stands out.
     private var isActive: Bool { isHovered }
 
     var body: some View {
@@ -41,7 +41,8 @@ struct RecordingRowView: View {
             VStack(alignment: .leading, spacing: 2) {
                 title
                 // The day is in the section header and every recording has system audio, so the
-                // line only says what varies: the time (when a name took its place), length, and mic.
+                // line only says what varies: the time (when a name took its place), length, mic, and
+                // anything Rekord is still doing to it.
                 HStack(spacing: 4) {
                     Text((recording.name == nil ? "" : "\(time) · ") + duration)
                     if recording.includesMicrophone {
@@ -50,6 +51,11 @@ struct RecordingRowView: View {
                             .imageScale(.small)
                             .help("Microphone included")
                             .accessibilityLabel("Microphone included")
+                    }
+                    if let activity {
+                        Text("·")
+                        ProgressView().controlSize(.mini)
+                        Text(activity).lineLimit(1)
                     }
                 }
                 .font(.subheadline)
@@ -62,11 +68,6 @@ struct RecordingRowView: View {
                 }
             }
             Spacer(minLength: 8)
-            if let activity {
-                ProgressView().controlSize(.small)
-                    .help(activity)
-                    .accessibilityLabel(activity)
-            }
             // A fixed column, so the states sit in the same place on every row.
             transcriptControl
                 .frame(width: 124, alignment: .trailing)
@@ -84,7 +85,7 @@ struct RecordingRowView: View {
         }
         .padding(.vertical, 5)
         .padding(.horizontal, 6)
-        .background(isHovered ? Color.primary.opacity(0.05) : .clear, in: RoundedRectangle(cornerRadius: 6))
+        .background(background, in: RoundedRectangle(cornerRadius: 6))
         .contentShape(Rectangle())
         .onHover { isHovered = $0 }
         .contextMenu {
@@ -105,6 +106,12 @@ struct RecordingRowView: View {
             Divider()
             Button("Move to Trash", role: .destructive, action: onDelete)
         }
+    }
+
+    /// The row being listened to stays marked, so its scrubber reads as part of it.
+    private var background: Color {
+        if playback == .playing || playback == .paused { return Color.accentColor.opacity(0.08) }
+        return isHovered ? Color.primary.opacity(0.05) : .clear
     }
 
     /// The name, or the time when there is none; double-click (or Rename… in the menu) edits it in place.
@@ -159,11 +166,18 @@ struct RecordingRowView: View {
 
     @ViewBuilder
     private var transcriptControl: some View {
+        // Every state shows at rest, so the list can be scanned for what has a transcript;
+        // pointing at a row only makes its action stand out.
         switch transcript {
         case .notStarted?:
-            Button(action: onTranscribe) { Label("Transcribe", systemImage: "text.badge.plus") }
+            Button(action: onTranscribe) { quiet(Label("Transcribe", systemImage: "text.badge.plus")) }
+                .buttonStyle(.plain)
                 .help("Make a transcript of this recording")
-                .showOnly(when: isActive)
+        case .queued?:
+            Label("Waiting…", systemImage: "clock")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .help("Waiting for another transcript to finish")
         case .inProgress?:
             HStack(spacing: 5) {
                 ProgressView().controlSize(.small)
@@ -171,11 +185,10 @@ struct RecordingRowView: View {
             }
             .accessibilityElement(children: .combine)
         case .ready?:
-            Button(action: onOpenTranscript) { Label("Open Transcript", systemImage: "doc.text") }
-                .labelStyle(.iconOnly)
-                .buttonStyle(.borderless)
+            Button(action: onOpenTranscript) { quiet(Label("Transcript", systemImage: "doc.text")) }
+                .buttonStyle(.plain)
                 .help("Open Transcript")
-                .showOnly(when: isActive)
+                .accessibilityLabel("Open Transcript")
         case .failed(let reason)?:
             // A failure stays visible: it is a status, not just an action.
             Button(action: onTranscribe) { Label("Try Again", systemImage: "exclamationmark.triangle") }
@@ -183,6 +196,11 @@ struct RecordingRowView: View {
         case nil:
             EmptyView()
         }
+    }
+
+    private func quiet(_ label: some View) -> some View {
+        // In a plain button: a borderless one dims this further, until it is hard to read.
+        label.font(.subheadline).foregroundStyle(isActive ? .primary : .secondary).contentShape(Rectangle())
     }
 
     private var duration: String {
