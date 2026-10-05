@@ -164,6 +164,9 @@ final class RecordingSession: ObservableObject {
         permissionIssue = nil
         startedAt = Date()
         state = .recording(since: startedAt)
+        // Written now and again on stop, so a recording cut short by a crash or a force quit is
+        // still listed; the store works out its length from the audio.
+        try? metadata(duration: 0).write(to: folder)
         startSilenceMonitor()
         #if DEBUG
         print("[Rekord] Recording started in \(folder.path) (mic: \(includeMic))")
@@ -200,17 +203,7 @@ final class RecordingSession: ObservableObject {
         state = .idle
 
         guard let folder = lastSessionFolder else { return }
-        let files = ["system.caf"] + (activeIncludesMic ? ["mic.caf"] : [])
-        let metadata = Metadata(
-            startDate: startedAt,
-            durationSeconds: recorded,  // paused time is not part of the recording
-            includeMicrophone: activeIncludesMic,
-            files: files,
-            systemSampleRate: systemRecorder.sampleRate,
-            micSampleRate: activeIncludesMic ? micRecorder.sampleRate : nil,
-            micOffsetSeconds: micOffset(),
-            sourceApp: activeSourceApp
-        )
+        let metadata = metadata(duration: recorded)  // paused time is not part of the recording
         do {
             try metadata.write(to: folder)
         } catch {
@@ -219,6 +212,19 @@ final class RecordingSession: ObservableObject {
         #if DEBUG
         print("[Rekord] Recording stopped, session at \(folder.path), mic offset: \(String(describing: metadata.micOffsetSeconds))")
         #endif
+    }
+
+    private func metadata(duration: TimeInterval) -> Metadata {
+        Metadata(
+            startDate: startedAt,
+            durationSeconds: duration,
+            includeMicrophone: activeIncludesMic,
+            files: ["system.caf"] + (activeIncludesMic ? ["mic.caf"] : []),
+            systemSampleRate: systemRecorder.sampleRate,
+            micSampleRate: activeIncludesMic ? micRecorder.sampleRate : nil,
+            micOffsetSeconds: micOffset(),
+            sourceApp: activeSourceApp
+        )
     }
 
     /// After a grace period, flags silence; clears the flag as soon as audio shows up,
