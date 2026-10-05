@@ -1,4 +1,5 @@
 import AVFoundation
+import os
 
 /// Records the microphone input to a file via AVAudioEngine's input node tap.
 /// File writes happen off the realtime audio thread on `writeQueue`.
@@ -17,6 +18,9 @@ final class MicRecorder {
     private(set) var sampleRate: Double = 0
     /// Audio that arrives during a pause is left out of the file.
     var pauseGate: PauseGate?
+    /// Why the first failed write failed (a full disk, a folder that went away); nil while all is well.
+    private let writeErrorLock = OSAllocatedUnfairLock<String?>(initialState: nil)
+    var writeError: String? { writeErrorLock.withLock { $0 } }
 
     #if DEBUG
     private var bufferCount = 0
@@ -40,6 +44,7 @@ final class MicRecorder {
         let format = inputNode.inputFormat(forBus: 0)
         sampleRate = format.sampleRate
         firstBufferHostTime = nil
+        writeErrorLock.withLock { $0 = nil }
 
         do {
             audioFile = try AVAudioFile(forWriting: fileURL, settings: format.settings)
@@ -67,6 +72,7 @@ final class MicRecorder {
                     #endif
                 } catch {
                     print("[Rekord][MicRecorder] write error: \(error)")
+                    self.writeErrorLock.withLock { if $0 == nil { $0 = error.localizedDescription } }
                 }
             }
         }
