@@ -21,6 +21,7 @@ struct RekordApp: App {
     var body: some Scene {
         MenuBarExtra {
             MenuBarView(session: session, store: store, hotkeyError: hotkeyPopup.registrationError)
+                .background(TooltipsWhenInactive())
         } label: {
             Image(nsImage: Self.menuBarIcon(recording: session.isRecording, warning: session.systemSilenceWarning, paused: session.isPaused))
         }
@@ -33,7 +34,7 @@ struct RekordApp: App {
         .defaultSize(width: 480, height: 340)
 
         Window("Rekord Settings", id: "settings") {
-            SettingsView(hotkey: hotkeyPopup, store: store)
+            SettingsView(hotkey: hotkeyPopup, store: store, session: session)
                 .background(TooltipsWhenInactive())
         }
         .windowResizability(.contentSize)

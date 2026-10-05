@@ -50,6 +50,9 @@ final class SystemAudioRecorder {
     /// permission delivers buffers of pure zeros, so this stays false in that case.
     private let sawAudioLock = OSAllocatedUnfairLock(initialState: false)
     var sawAudio: Bool { sawAudioLock.withLock { $0 } }
+    /// Why the first failed write failed (a full disk, a folder that went away); nil while all is well.
+    private let writeErrorLock = OSAllocatedUnfairLock<String?>(initialState: nil)
+    var writeError: String? { writeErrorLock.withLock { $0 } }
 
     #if DEBUG
     private var bufferCount = 0
@@ -60,6 +63,7 @@ final class SystemAudioRecorder {
         guard !isRecording else { throw RecorderError.alreadyRecording }
         firstBufferHostTime = nil
         sawAudioLock.withLock { $0 = false }
+        writeErrorLock.withLock { $0 = nil }
 
         // 1. Create a tap on one app's processes, or on the whole system output.
         let tapDescription: CATapDescription
@@ -157,6 +161,7 @@ final class SystemAudioRecorder {
                     #endif
                 } catch {
                     print("[Rekord][SystemAudioRecorder] write error: \(error)")
+                    self.writeErrorLock.withLock { if $0 == nil { $0 = error.localizedDescription } }
                 }
             }
             guard status == noErr, let procID = newIOProcID else {
@@ -209,8 +214,10 @@ final class SystemAudioRecorder {
             mScope: kAudioObjectPropertyScopeGlobal,
             mElement: kAudioObjectPropertyElementMain
         )
-        var description = source.tap
-        let status = AudioObjectSetPropertyData(tapID, &address, 0, nil, UInt32(MemoryLayout<CATapDescription>.size), &description)
+        // The property's value is the description object itself, passed as a pointer to the reference.
+        let status = withUnsafePointer(to: source.tap) {
+            AudioObjectSetPropertyData(tapID, &address, 0, nil, UInt32(MemoryLayout<CATapDescription>.size), $0)
+        }
         #if DEBUG
         print("[Rekord][SystemAudioRecorder] tap now follows processes \(processes) (status \(status))")
         #endif

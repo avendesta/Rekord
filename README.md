@@ -99,7 +99,7 @@ Press the shortcut again during a recording to see the elapsed time, with **Paus
 
 Each paragraph is one stretch of a speaker. If you use speakers, your microphone also hears the meeting; Rekord leaves those repeated lines out of the transcript. Right-click a recording and choose **Copy Transcript** to paste it, with its name and date, into an AI assistant or a document.
 
-**Old audio is removed.** After 7 days, a transcribed recording's audio goes to the Trash and the transcript stays. Change the period or turn this off in **Settings > Audio > Delete audio after**.
+**Old audio is removed.** After 7 days, a transcribed recording's audio goes to the Trash and the transcript stays. The transcript has to be that old too and has to contain words, so you always get the period to check a new transcript against its audio. Change the period or turn this off in **Settings > Audio > Delete audio after**.
 
 Everyone on the other end of a call is "Others"; Rekord doesn't tell them apart. Pick the language, leave out the timestamps, or turn the automatic part off, in **Settings > Transcription**.
 
@@ -119,14 +119,14 @@ Each recording is a folder in `~/Documents/Rekord/` (or the folder you chose in 
 
 After the period set in Settings (7 days by default), the three audio files of a transcribed recording are moved to the Trash; `transcript.txt` and `session.json` stay.
 
-Audio is recorded as `.caf`, which survives a crash, and converted to `.m4a` when the recording finishes, so the files are small and play anywhere. To keep the lossless `.caf` files instead, choose **CAF (lossless)** in **Settings > Audio**; convert one for another tool with `afconvert -f WAVE -d LEI16 system.caf system.wav`.
+Audio is recorded as `.caf`, which survives a crash (the recording is listed the next time Rekord opens, with whatever was captured), and converted to `.m4a` when the recording finishes, so the files are small and play anywhere. To keep the lossless `.caf` files instead, choose **CAF (lossless)** in **Settings > Audio**; convert one for another tool with `afconvert -f WAVE -d LEI16 system.caf system.wav`.
 
 ### Settings
 
 Open **Settings…** from the menu. It has four tabs:
 
 - **General:** launch at login (the shortcut only works while Rekord is running), the shortcut (any combination that includes ⌘, ⌥ or ⌃) and the save location.
-- **Audio:** which microphone Rekord uses, without changing your Mac's system input, whether the microphone is on by default, and the format recordings are kept in (M4A or lossless CAF), with a button to compress older recordings, and how long audio is kept before it is removed.
+- **Audio:** which microphone Rekord uses, without changing your Mac's system input, whether the microphone is on by default, and the format recordings are kept in (M4A or lossless CAF), with a button to convert older recordings, and how long audio is kept before it is removed.
 - **Transcription:** automatic transcripts, language, timestamps and whether the microphone is included (macOS 26 or later). Leave the microphone out if it picks up the meeting from your speakers and lines appear twice.
 - **Privacy:** the state of the Microphone and System Audio permissions, with links to their System Settings pages. macOS doesn't report the System Audio permission, so Rekord shows whether your last recording received system audio.
 
@@ -135,7 +135,7 @@ Open **Settings…** from the menu. It has four tabs:
 - **Use headphones.** On speakers, the microphone also hears the meeting from the room, so it ends up on your mic track too. Rekord leaves those repeated lines out of the transcript, but they are still in the audio.
 - **The shortcut does nothing.** Rekord must be running (turn on *Launch at login*), and another app may already use that combination. Rekord shows a warning when it can't claim the shortcut; pick another one in Settings.
 - **Nothing is recorded from other people.** Check the System Audio permission above.
-- **Other sounds end up in the recording.** With **Source** on *All Audio*, Rekord records everything your Mac plays. Choose your meeting app as the source, or mute the audio you don't want.
+- **Other sounds end up in the recording.** With **Source** on *All System Audio*, Rekord records everything your Mac plays. Choose your meeting app as the source, or mute the audio you don't want.
 - Rekord doesn't detect meetings automatically. You start and stop recordings yourself. Check your local laws and get consent before recording other people.
 
 ## For developers
@@ -167,7 +167,7 @@ The unit tests in `RekordTests/` cover the mixdown, the transcript (echo removal
 - **One app:** `AudioSourceApps` finds the app's Core Audio processes: its own, and any helper whose executable is inside its bundle, because a helper's bundle ID doesn't have to follow the app's. Helpers start and stop, so while recording, a listener on Core Audio's process list keeps the tap pointed at the current ones.
 - **Microphone:** `MicRecorder` taps an `AVAudioEngine` input node, writing on its own queue. It can point that engine at a chosen device without changing the system default.
 - **Pause:** `PauseGate` holds the paused stretches as host times; both recorders cut their buffers at exactly those moments, so the tracks stay in step.
-- **Session:** `RecordingSession` starts both, records each track's first-buffer host time so `session.json` can store the sync offset, and rolls back on any start failure.
+- **Session:** `RecordingSession` starts both, records each track's first-buffer host time so `session.json` can store the sync offset, and rolls back on any start failure. It writes `session.json` at the start as well as on stop, so an unfinished recording is still found, and it ends the recording if a track can no longer be written.
 - **Transcripts:** `Transcriber` runs Apple's `SpeechAnalyzer` (macOS 26+) over each track. `Transcript.render` puts both on the recording's timeline, drops microphone segments that only repeat the system track (`withoutEcho`), and joins each speaker's sentences into paragraphs. Older systems skip it.
 - **Retention:** `RecordingStore` moves the audio of old, transcribed recordings to the Trash when it reloads.
 - **Playback:** `PlaybackController` is one `AVAudioPlayer` shared by the Recordings window.

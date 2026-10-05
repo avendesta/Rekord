@@ -149,7 +149,7 @@ final class RecordingSession: ObservableObject {
             if case SystemAudioRecorder.RecorderError.tapCreationFailed = error { permissionIssue = .systemAudio }
             if case SystemAudioRecorder.RecorderError.sourceAppNotRunning = error, let sourceName {
                 // Never fall back to recording everything: the user asked for this app only.
-                lastError = "\(sourceName) isn't running. Open it, or set Source to All Audio."
+                lastError = "\(sourceName) isn't running. Open it, or set Source to All System Audio."
             } else {
                 lastError = "Failed to start recording: \(error.localizedDescription)"
             }
@@ -164,6 +164,9 @@ final class RecordingSession: ObservableObject {
         permissionIssue = nil
         startedAt = Date()
         state = .recording(since: startedAt)
+        // Written now and again on stop, so a recording cut short by a crash or a force quit is
+        // still listed; the store works out its length from the audio.
+        try? metadata(duration: 0).write(to: folder)
         startSilenceMonitor()
         #if DEBUG
         print("[Rekord] Recording started in \(folder.path) (mic: \(includeMic))")
@@ -200,17 +203,7 @@ final class RecordingSession: ObservableObject {
         state = .idle
 
         guard let folder = lastSessionFolder else { return }
-        let files = ["system.caf"] + (activeIncludesMic ? ["mic.caf"] : [])
-        let metadata = Metadata(
-            startDate: startedAt,
-            durationSeconds: recorded,  // paused time is not part of the recording
-            includeMicrophone: activeIncludesMic,
-            files: files,
-            systemSampleRate: systemRecorder.sampleRate,
-            micSampleRate: activeIncludesMic ? micRecorder.sampleRate : nil,
-            micOffsetSeconds: micOffset(),
-            sourceApp: activeSourceApp
-        )
+        let metadata = metadata(duration: recorded)  // paused time is not part of the recording
         do {
             try metadata.write(to: folder)
         } catch {
@@ -221,16 +214,39 @@ final class RecordingSession: ObservableObject {
         #endif
     }
 
-    /// After a grace period, flags silence; clears the flag as soon as audio shows up,
-    /// so starting a recording before a meeting begins isn't reported as a failure.
+    private func metadata(duration: TimeInterval) -> Metadata {
+        Metadata(
+            startDate: startedAt,
+            durationSeconds: duration,
+            includeMicrophone: activeIncludesMic,
+            files: ["system.caf"] + (activeIncludesMic ? ["mic.caf"] : []),
+            systemSampleRate: systemRecorder.sampleRate,
+            micSampleRate: activeIncludesMic ? micRecorder.sampleRate : nil,
+            micOffsetSeconds: micOffset(),
+            sourceApp: activeSourceApp
+        )
+    }
+
+    /// Checks on the recording once a second. After a grace period, flags silence; clears the flag
+    /// as soon as audio shows up, so starting a recording before a meeting begins isn't reported
+    /// as a failure. Ends the recording if a track can no longer be written, rather than carrying
+    /// on with nothing being saved.
     private func startSilenceMonitor() {
         silenceMonitor?.cancel()
         silenceMonitor = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(Self.silenceGraceSeconds))
-            while !Task.isCancelled {
-                guard let self else { return }
-                self.systemSilenceWarning = !self.isPaused && !self.systemRecorder.sawAudio
+            var seconds = 0
+            while true {
                 try? await Task.sleep(for: .seconds(1))
+                guard let self, !Task.isCancelled else { return }
+                if let error = self.systemRecorder.writeError ?? (self.activeIncludesMic ? self.micRecorder.writeError : nil) {
+                    self.stop()
+                    self.lastError = "Recording stopped, it could not be saved: \(error)"
+                    return
+                }
+                seconds += 1
+                if seconds >= Self.silenceGraceSeconds {
+                    self.systemSilenceWarning = !self.isPaused && !self.systemRecorder.sawAudio
+                }
             }
         }
     }

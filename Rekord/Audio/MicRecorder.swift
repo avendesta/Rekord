@@ -1,11 +1,21 @@
 import AVFoundation
+import os
 
 /// Records the microphone input to a file via AVAudioEngine's input node tap.
 /// File writes happen off the realtime audio thread on `writeQueue`.
 final class MicRecorder {
-    enum RecorderError: Error {
+    enum RecorderError: Error, LocalizedError {
         case alreadyRecording
+        case noInputDevice
         case fileCreationFailed(Error)
+
+        var errorDescription: String? {
+            switch self {
+            case .alreadyRecording: return "Already recording the microphone."
+            case .noInputDevice: return "No microphone found. Connect one, or turn the microphone off."
+            case .fileCreationFailed(let error): return "Failed to create audio file: \(error.localizedDescription)"
+            }
+        }
     }
 
     private var engine = AVAudioEngine()
@@ -17,6 +27,9 @@ final class MicRecorder {
     private(set) var sampleRate: Double = 0
     /// Audio that arrives during a pause is left out of the file.
     var pauseGate: PauseGate?
+    /// Why the first failed write failed (a full disk, a folder that went away); nil while all is well.
+    private let writeErrorLock = OSAllocatedUnfairLock<String?>(initialState: nil)
+    var writeError: String? { writeErrorLock.withLock { $0 } }
 
     #if DEBUG
     private var bufferCount = 0
@@ -38,8 +51,11 @@ final class MicRecorder {
                                  &device, UInt32(MemoryLayout<AudioObjectID>.size))
         }
         let format = inputNode.inputFormat(forBus: 0)
+        // A Mac with no input device reports an empty format, and tapping that raises an exception.
+        guard format.sampleRate > 0, format.channelCount > 0 else { throw RecorderError.noInputDevice }
         sampleRate = format.sampleRate
         firstBufferHostTime = nil
+        writeErrorLock.withLock { $0 = nil }
 
         do {
             audioFile = try AVAudioFile(forWriting: fileURL, settings: format.settings)
@@ -67,12 +83,20 @@ final class MicRecorder {
                     #endif
                 } catch {
                     print("[Rekord][MicRecorder] write error: \(error)")
+                    self.writeErrorLock.withLock { if $0 == nil { $0 = error.localizedDescription } }
                 }
             }
         }
 
         engine.prepare()
-        try engine.start()
+        do {
+            try engine.start()
+        } catch {
+            // stop() does nothing before isRecording is set, so undo the tap and the file here.
+            inputNode.removeTap(onBus: 0)
+            writeQueue.sync { self.audioFile = nil }
+            throw error
+        }
         isRecording = true
     }
 

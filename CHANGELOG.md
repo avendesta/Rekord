@@ -2,6 +2,18 @@
 
 Each release's notes come from its `## <version>` section here, so add one before bumping `MARKETING_VERSION`.
 
+## 1.7.1
+- **A crash no longer hides a recording.** If Rekord or your Mac goes down mid-recording, what was captured is listed the next time Rekord opens. Before, the audio was on disk but never appeared in the app.
+- **Rekord stops and tells you when it can't save**, for example when the disk is full, instead of carrying on with nothing being written.
+- **Old audio is removed more carefully.** A transcript that found no speech no longer counts, and a transcript made from an old recording keeps its audio for the full period, so you can check one against the other.
+- The save folder can't be changed while a recording is running; doing so used to leave that recording out of the list.
+- A Mac with no microphone gets a clear message when the microphone is switched on.
+- Deleting a recording while it is being mixed no longer shows an error.
+- **The Recordings list shows what each recording has.** Every row says whether it has a transcript, can be transcribed, is being transcribed or is waiting its turn, without you pointing at it. Mixing and converting are named under the recording, the one being played stays highlighted, and a mix that fails names the recording.
+- **Trashing is smoother.** The row fades out as the Undo message comes in, and Undo puts it back the same way. Pointing at the Undo message keeps it open.
+- **The menu keeps the timer when something is wrong.** If a recording receives no system audio, the warning appears under the timer instead of in its place. The menu is also more compact, the source reads **All System Audio**, and Source and Microphone say why they are off while recording.
+- **Settings are easier to read.** Each explanation sits under its setting instead of in a row of its own. System Audio reports whether your last recording received audio, since macOS doesn't tell Rekord whether it is allowed, and **Compress to M4A…** is now **Convert to M4A…**.
+
 ## 1.7.0
 - **Record one app.** Choose an app under **Source** in the menu to record only its audio, such as your meeting app, and leave out everything else your Mac plays. **All Audio** is still the default, and the shortcut popup shows which source is set.
 - The app has to be open when you start. If it isn't, Rekord tells you instead of recording everything.

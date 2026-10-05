@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 import Combine
 import Foundation
 
@@ -21,6 +22,7 @@ final class RecordingStore: ObservableObject {
     @Published private(set) var compressing: URL?
 
     private var sessionObserver: AnyCancellable?
+    private weak var session: RecordingSession?
 
     static var rootFolder: URL { AppSettings.outputFolder }
 
@@ -28,6 +30,7 @@ final class RecordingStore: ObservableObject {
     /// transcribed even if no window is open. Deferred a turn: `stop()` writes session.json after
     /// it changes state.
     func follow(_ session: RecordingSession) {
+        self.session = session
         sessionObserver = session.$state
             .removeDuplicates()
             .scan((State.idle, State.idle)) { ($0.1, $1) }
@@ -53,10 +56,13 @@ final class RecordingStore: ObservableObject {
         let folders = (try? FileManager.default.contentsOfDirectory(
             at: Self.rootFolder, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)) ?? []
 
-        // Folders without a readable session.json (old test dirs, crashed sessions) are skipped.
+        // The recording in progress has its session.json already, but isn't one to list, mix or play yet.
+        let active = session.flatMap { $0.isRecording ? $0.lastSessionFolder?.path : nil }
+
+        // Folders without a readable session.json (old test dirs) are skipped.
         recordings = folders.compactMap { folder in
-            guard let metadata = try? RecordingSession.Metadata.read(from: folder) else { return nil }
-            return Recording(folder: folder, metadata: metadata)
+            guard folder.path != active, let metadata = try? RecordingSession.Metadata.read(from: folder) else { return nil }
+            return Recording(folder: folder, metadata: Self.finished(metadata, in: folder))
         }
         .sorted { $0.startDate > $1.startDate }
 
@@ -70,23 +76,47 @@ final class RecordingStore: ObservableObject {
         compressNext()
     }
 
+    /// A recording that was never stopped (a crash, a force quit) still has the zero length written
+    /// when it started. Its real length is the system track's, which CAF keeps readable unclosed.
+    private static func finished(_ metadata: RecordingSession.Metadata, in folder: URL) -> RecordingSession.Metadata {
+        guard metadata.durationSeconds == 0, let url = Track.system.url(in: folder),
+              let file = try? AVAudioFile(forReading: url), file.length > 0 else { return metadata }
+        // ponytail: the mic/system offset of a crashed recording is unknown, so its mix assumes
+        // both tracks started together. Write the offset into session.json mid-recording if that shows.
+        var metadata = metadata
+        metadata.durationSeconds = Double(file.length) / file.fileFormat.sampleRate
+        try? metadata.write(to: folder)
+        return metadata
+    }
+
     /// Moves the audio of old recordings to the Trash, keeping the transcript and the name. Only
-    /// recordings that have a transcript qualify, so nothing is ever left with neither.
+    /// recordings that have a transcript qualify, so nothing is ever left with neither: the
+    /// transcript must hold words, and must itself be older than the period, so one made today
+    /// from an old recording can still be checked against its audio.
     private func removeExpiredAudio(now: Date = Date()) {
         let days = AppSettings.audioRetentionDays
         guard days > 0 else { return }
         let cutoff = now.addingTimeInterval(-Double(days) * 86_400)
-        for recording in recordings where recording.startDate < cutoff && recording.hasTranscript {
+        for recording in recordings where recording.startDate < cutoff {
             // Leave alone anything still being worked on.
             guard !combining.contains(recording.id), compressing != recording.id,
                   !transcriptQueue.contains(recording.id), !pendingCompression.contains(recording.id) else { continue }
-            for track in Track.allCases {
-                for file in [track.original(in: recording.folder), track.original(in: recording.folder).deletingPathExtension().appendingPathExtension("m4a")]
-                where FileManager.default.fileExists(atPath: file.path) {
-                    try? FileManager.default.trashItem(at: file, resultingItemURL: nil)
-                }
+            let audio = Track.allCases
+                .flatMap { [$0.original(in: recording.folder), $0.original(in: recording.folder).deletingPathExtension().appendingPathExtension("m4a")] }
+                .filter { FileManager.default.fileExists(atPath: $0.path) }
+            guard !audio.isEmpty, Self.transcriptCanReplaceAudio(recording, writtenBefore: cutoff) else { continue }
+            for file in audio {
+                try? FileManager.default.trashItem(at: file, resultingItemURL: nil)
             }
         }
+    }
+
+    private static func transcriptCanReplaceAudio(_ recording: Recording, writtenBefore cutoff: Date) -> Bool {
+        guard let text = try? String(contentsOf: recording.transcriptURL, encoding: .utf8),
+              text.trimmingCharacters(in: .whitespacesAndNewlines) != Transcript.noSpeech,
+              let written = try? FileManager.default.attributesOfItem(atPath: recording.transcriptURL.path)[.modificationDate] as? Date
+        else { return false }
+        return written < cutoff
     }
 
     /// Recordings that still have CAF audio worth converting.
@@ -198,9 +228,12 @@ final class RecordingStore: ObservableObject {
             let result = Result { try CombineEngine.combine(folder: recording.folder, metadata: recording.metadata) }
             await MainActor.run {
                 self.combining.remove(recording.id)
-                if case .failure(let error) = result {
+                // A recording trashed mid-mix fails too, and that is nothing to report.
+                if case .failure(let error) = result, FileManager.default.fileExists(atPath: recording.folder.path) {
                     self.failed.insert(recording.id)
-                    self.combineError = error.localizedDescription
+                    let what = recording.name.map { "\"\($0)\"" }
+                        ?? "the recording from \(recording.startDate.formatted(date: .abbreviated, time: .shortened))"
+                    self.combineError = "Couldn't prepare \(what) for playback. \(error.localizedDescription)"
                 }
                 self.reload()
             }
@@ -239,6 +272,7 @@ final class RecordingStore: ObservableObject {
         for item in trashed {
             do {
                 try FileManager.default.moveItem(at: item.inTrash, to: item.original)
+                failed.remove(item.original)
             } catch {
                 allRestored = false
             }
