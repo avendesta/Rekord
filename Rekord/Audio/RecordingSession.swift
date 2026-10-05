@@ -227,16 +227,26 @@ final class RecordingSession: ObservableObject {
         )
     }
 
-    /// After a grace period, flags silence; clears the flag as soon as audio shows up,
-    /// so starting a recording before a meeting begins isn't reported as a failure.
+    /// Checks on the recording once a second. After a grace period, flags silence; clears the flag
+    /// as soon as audio shows up, so starting a recording before a meeting begins isn't reported
+    /// as a failure. Ends the recording if a track can no longer be written, rather than carrying
+    /// on with nothing being saved.
     private func startSilenceMonitor() {
         silenceMonitor?.cancel()
         silenceMonitor = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(Self.silenceGraceSeconds))
-            while !Task.isCancelled {
-                guard let self else { return }
-                self.systemSilenceWarning = !self.isPaused && !self.systemRecorder.sawAudio
+            var seconds = 0
+            while true {
                 try? await Task.sleep(for: .seconds(1))
+                guard let self, !Task.isCancelled else { return }
+                if let error = self.systemRecorder.writeError ?? (self.activeIncludesMic ? self.micRecorder.writeError : nil) {
+                    self.stop()
+                    self.lastError = "Recording stopped, it could not be saved: \(error)"
+                    return
+                }
+                seconds += 1
+                if seconds >= Self.silenceGraceSeconds {
+                    self.systemSilenceWarning = !self.isPaused && !self.systemRecorder.sawAudio
+                }
             }
         }
     }
