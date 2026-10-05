@@ -90,22 +90,33 @@ final class RecordingStore: ObservableObject {
     }
 
     /// Moves the audio of old recordings to the Trash, keeping the transcript and the name. Only
-    /// recordings that have a transcript qualify, so nothing is ever left with neither.
+    /// recordings that have a transcript qualify, so nothing is ever left with neither: the
+    /// transcript must hold words, and must itself be older than the period, so one made today
+    /// from an old recording can still be checked against its audio.
     private func removeExpiredAudio(now: Date = Date()) {
         let days = AppSettings.audioRetentionDays
         guard days > 0 else { return }
         let cutoff = now.addingTimeInterval(-Double(days) * 86_400)
-        for recording in recordings where recording.startDate < cutoff && recording.hasTranscript {
+        for recording in recordings where recording.startDate < cutoff {
             // Leave alone anything still being worked on.
             guard !combining.contains(recording.id), compressing != recording.id,
                   !transcriptQueue.contains(recording.id), !pendingCompression.contains(recording.id) else { continue }
-            for track in Track.allCases {
-                for file in [track.original(in: recording.folder), track.original(in: recording.folder).deletingPathExtension().appendingPathExtension("m4a")]
-                where FileManager.default.fileExists(atPath: file.path) {
-                    try? FileManager.default.trashItem(at: file, resultingItemURL: nil)
-                }
+            let audio = Track.allCases
+                .flatMap { [$0.original(in: recording.folder), $0.original(in: recording.folder).deletingPathExtension().appendingPathExtension("m4a")] }
+                .filter { FileManager.default.fileExists(atPath: $0.path) }
+            guard !audio.isEmpty, Self.transcriptCanReplaceAudio(recording, writtenBefore: cutoff) else { continue }
+            for file in audio {
+                try? FileManager.default.trashItem(at: file, resultingItemURL: nil)
             }
         }
+    }
+
+    private static func transcriptCanReplaceAudio(_ recording: Recording, writtenBefore cutoff: Date) -> Bool {
+        guard let text = try? String(contentsOf: recording.transcriptURL, encoding: .utf8),
+              text.trimmingCharacters(in: .whitespacesAndNewlines) != Transcript.noSpeech,
+              let written = try? FileManager.default.attributesOfItem(atPath: recording.transcriptURL.path)[.modificationDate] as? Date
+        else { return false }
+        return written < cutoff
     }
 
     /// Recordings that still have CAF audio worth converting.

@@ -359,8 +359,10 @@ final class StorageTests: XCTestCase {
     }
 
     func testOldAudioIsRemovedButTheTranscriptStays() throws {
-        /// A system-only session `daysOld` days ago, with real audio and, if asked, a transcript.
-        func session(_ name: String, daysOld: Double, transcript: Bool) throws -> URL {
+        /// A system-only session `daysOld` days ago, with real audio and, if asked, a transcript
+        /// written the same day (or `transcriptDaysOld` days ago).
+        func session(_ name: String, daysOld: Double, transcript: Bool, text: String = "Hello.\n",
+                     transcriptDaysOld: Double? = nil) throws -> URL {
             let folder = root.appendingPathComponent(name, isDirectory: true)
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             try writeTestTrack(at: folder.appendingPathComponent("system.caf"), seconds: 0.2, level: 0.1)
@@ -369,13 +371,20 @@ final class StorageTests: XCTestCase {
                 startDate: Date().addingTimeInterval(-daysOld * 86_400), durationSeconds: 0.2, includeMicrophone: false,
                 files: ["system.m4a"], systemSampleRate: 48_000, micSampleRate: nil, micOffsetSeconds: nil, name: "Kept name"
             ).write(to: folder)
-            if transcript { try Data("Hello.\n".utf8).write(to: folder.appendingPathComponent("transcript.txt")) }
+            if transcript {
+                let url = folder.appendingPathComponent("transcript.txt")
+                try Data(text.utf8).write(to: url)
+                let written = Date().addingTimeInterval(-(transcriptDaysOld ?? daysOld) * 86_400)
+                try FileManager.default.setAttributes([.modificationDate: written], ofItemAtPath: url.path)
+            }
             return folder
         }
         func files(_ folder: URL) throws -> [String] { try FileManager.default.contentsOfDirectory(atPath: folder.path).sorted() }
         let old = try session("old", daysOld: 8, transcript: true)
         let oldWithoutTranscript = try session("old-no-transcript", daysOld: 8, transcript: false)
         let recent = try session("recent", daysOld: 6, transcript: true)
+        let justTranscribed = try session("old-just-transcribed", daysOld: 30, transcript: true, transcriptDaysOld: 0)
+        let noWords = try session("old-no-words", daysOld: 8, transcript: true, text: Transcript.noSpeech + "\n")
         UserDefaults.standard.set(root.path, forKey: AppSettings.outputFolderKey)
         let store = RecordingStore()
 
@@ -388,6 +397,8 @@ final class StorageTests: XCTestCase {
         XCTAssertEqual(try files(old), ["session.json", "transcript.txt"])
         XCTAssertEqual(try files(oldWithoutTranscript), ["session.json", "system.m4a"])  // never left with neither
         XCTAssertEqual(try files(recent), ["session.json", "system.m4a", "transcript.txt"])
+        XCTAssertEqual(try files(justTranscribed), ["session.json", "system.m4a", "transcript.txt"])  // time to read it first
+        XCTAssertEqual(try files(noWords), ["session.json", "system.m4a", "transcript.txt"])  // the audio is all there is
         let kept = try XCTUnwrap(store.recordings.first { $0.folder.lastPathComponent == "old" })
         XCTAssertEqual(kept.name, "Kept name")
         XCTAssertTrue(kept.hasTranscript && !kept.hasAudio)
