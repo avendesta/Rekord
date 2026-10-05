@@ -126,7 +126,7 @@ struct RecordingsWindowView: View {
             player: player,
             onTogglePlay: { withAnimation(.easeInOut(duration: 0.15)) { player.toggle(recording) } },
             activity: store.combining.contains(recording.id) ? "Preparing…"
-                : store.compressing == recording.id ? "Compressing…" : nil,
+                : store.compressing == recording.id ? "Converting…" : nil,
             transcript: transcriptState(of: recording),
             onTranscribe: { store.transcribe(recording) },
             onOpenTranscript: { store.openTranscript(recording) },
