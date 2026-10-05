@@ -85,6 +85,8 @@ If a recording's system audio comes out silent, the second permission is missing
 
 Click a row, press `1` or `2`, or use the arrow keys and Return. Esc cancels. Rekord remembers your last choice, so **⇧⌘9** then **Return** repeats it.
 
+**Record one app.** Rekord normally records everything your Mac plays. To record a single app, such as your meeting app, choose it under **Source** in the menu; the list shows the open apps that can play audio. Notification sounds and music from other apps then stay out of the recording. Rekord remembers the choice and the shortcut popup shows it. The app has to be open when you start: if it isn't, Rekord tells you instead of recording everything. A meeting in a browser records every tab of that browser, and Safari can't be chosen, because its audio comes from a shared system process.
+
 Press the shortcut again during a recording to see the elapsed time, with **Pause** (or **P**) and **Stop**. Pausing leaves out everything until you resume; it is still one recording, and the timer counts recorded time only. The menu has the same Pause and Stop buttons. The menu bar icon shows pause bars while paused. Its inner dot is red while recording, or orange if no system audio is arriving (usually a missing permission).
 
 **Transcripts.** On macOS 26 or later, Rekord writes a `transcript.txt` for each new recording, on your Mac, a little after you stop. Older recordings have a **Transcribe** button in the Recordings list. With the microphone included, lines are labelled **Me** and **Others**:
@@ -111,7 +113,8 @@ Each recording is a folder in `~/Documents/Rekord/` (or the folder you chose in 
   mic.m4a         your microphone (only if it was included)
   combined.m4a    both mixed together (made automatically when the mic was included)
   transcript.txt  what was said, with times (macOS 26 or later)
-  session.json    start time, duration, sample rates, mic/system sync offset, and the name you gave it
+  session.json    start time, duration, sample rates, mic/system sync offset, the name you gave it,
+                  and the app it was recorded from, if you chose one
 ```
 
 After the period set in Settings (7 days by default), the three audio files of a transcribed recording are moved to the Trash; `transcript.txt` and `session.json` stay.
@@ -132,7 +135,7 @@ Open **Settings…** from the menu. It has four tabs:
 - **Use headphones.** On speakers, the microphone also hears the meeting from the room, so it ends up on your mic track too. Rekord leaves those repeated lines out of the transcript, but they are still in the audio.
 - **The shortcut does nothing.** Rekord must be running (turn on *Launch at login*), and another app may already use that combination. Rekord shows a warning when it can't claim the shortcut; pick another one in Settings.
 - **Nothing is recorded from other people.** Check the System Audio permission above.
-- Rekord records everything your Mac plays, not just one app. Mute other audio you don't want in the file.
+- **Other sounds end up in the recording.** With **Source** on *All Audio*, Rekord records everything your Mac plays. Choose your meeting app as the source, or mute the audio you don't want.
 - Rekord doesn't detect meetings automatically. You start and stop recordings yourself. Check your local laws and get consent before recording other people.
 
 ## For developers
@@ -156,11 +159,12 @@ xcodebuild test -project Rekord.xcodeproj -scheme Rekord -destination 'platform=
   CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM=
 ```
 
-The unit tests in `RekordTests/` cover the mixdown, the transcript (echo removal and paragraphs), M4A conversion, pausing, playback state, audio removal, `session.json`, shortcuts, the output folder setting and the recordings list, and CI runs them on every pull request. A few use the real speech model and are skipped where it isn't installed. Because they run inside the app, they read and restore the app's real settings. Core Audio taps need real hardware and real permissions, so capture has no automated tests; test that by recording.
+The unit tests in `RekordTests/` cover the mixdown, the transcript (echo removal and paragraphs), M4A conversion, pausing, playback state, audio removal, `session.json`, shortcuts, the output folder setting, the recordings list and matching an app's helper processes, and CI runs them on every pull request. A few use the real speech model and are skipped where it isn't installed. Because they run inside the app, they read and restore the app's real settings. Core Audio taps need real hardware and real permissions, so capture has no automated tests; test that by recording.
 
 ### How it works
 
-- **System audio:** `SystemAudioRecorder` creates a global Core Audio process tap (`AudioHardwareCreateProcessTap`, macOS 14.4+) and pairs it with the default output device in a private aggregate device, then writes the IOProc's buffers to a file. Without the System Audio permission the tap still runs but delivers zeros, so `sawAudio` tracks whether any real signal arrived.
+- **System audio:** `SystemAudioRecorder` creates a Core Audio process tap (`AudioHardwareCreateProcessTap`, macOS 14.4+), on the whole system or on one app's processes, and pairs it with the default output device in a private aggregate device, then writes the IOProc's buffers to a file. Without the System Audio permission the tap still runs but delivers zeros, so `sawAudio` tracks whether any real signal arrived.
+- **One app:** `AudioSourceApps` finds the app's Core Audio processes: its own, and any helper whose executable is inside its bundle, because a helper's bundle ID doesn't have to follow the app's. Helpers start and stop, so while recording, a listener on Core Audio's process list keeps the tap pointed at the current ones.
 - **Microphone:** `MicRecorder` taps an `AVAudioEngine` input node, writing on its own queue. It can point that engine at a chosen device without changing the system default.
 - **Pause:** `PauseGate` holds the paused stretches as host times; both recorders cut their buffers at exactly those moments, so the tracks stay in step.
 - **Session:** `RecordingSession` starts both, records each track's first-buffer host time so `session.json` can store the sync offset, and rolls back on any start failure.
@@ -176,7 +180,7 @@ Rekord/
   App/       RekordApp: menu bar scene, windows
   Audio/     SystemAudioRecorder, MicRecorder, RecordingSession, PauseGate, CombineEngine,
              Transcriber, AudioCompressor, PlaybackController, AudioInputDevices,
-             PermissionsManager
+             AudioSourceApps, PermissionsManager
   Models/    Recording, RecordingStore, AppSettings
   UI/        MenuBarView, RecordingsWindowView, RecordingRowView, SettingsView,
              HotkeyManager, HotkeyPopupView
@@ -188,7 +192,7 @@ project.yml  XcodeGen project definition
 ### Constraints
 
 - There are two builds from the same code: the direct download and Homebrew build is unsandboxed, Developer ID signed and notarized; the Mac App Store build is sandboxed and keeps access to your chosen folder with a security-scoped bookmark. See [RELEASING.md](RELEASING.md).
-- The tap captures the whole system output, not a single app.
+- Recording one app taps its processes, not a window or a tab, so a browser is a single source. Safari plays through `com.apple.WebKit.GPU`, a system process that isn't tied to it, so it isn't offered.
 
 ### Releasing
 

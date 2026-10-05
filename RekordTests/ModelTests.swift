@@ -61,7 +61,8 @@ final class MetadataTests: XCTestCase {
     func testRoundTripKeepsEveryField() throws {
         let original = RecordingSession.Metadata(
             startDate: Date(timeIntervalSince1970: 1_700_000_000), durationSeconds: 12.5, includeMicrophone: true,
-            files: ["system.caf", "mic.caf"], systemSampleRate: 48_000, micSampleRate: 44_100, micOffsetSeconds: -0.02)
+            files: ["system.caf", "mic.caf"], systemSampleRate: 48_000, micSampleRate: 44_100, micOffsetSeconds: -0.02,
+            sourceApp: "zoom.us")
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
 
@@ -72,6 +73,7 @@ final class MetadataTests: XCTestCase {
         XCTAssertEqual(decoded.files, original.files)
         XCTAssertEqual(decoded.micSampleRate, 44_100)
         XCTAssertEqual(decoded.micOffsetSeconds, -0.02)
+        XCTAssertEqual(decoded.sourceApp, "zoom.us")
     }
 
     func testSystemOnlySessionDecodesWithoutMicFields() throws {
@@ -83,6 +85,37 @@ final class MetadataTests: XCTestCase {
         XCTAssertFalse(metadata.includeMicrophone)
         XCTAssertNil(metadata.micSampleRate)
         XCTAssertNil(metadata.micOffsetSeconds)
+        XCTAssertNil(metadata.sourceApp)
+    }
+}
+
+final class AudioSourceTests: XCTestCase {
+    func testHelpersInsideTheAppBundleBelongToTheApp() {
+        let zoom = "/Applications/zoom.us.app"
+        XCTAssertTrue(AudioSourceApps.owns(bundlePath: zoom, executablePath: "/Applications/zoom.us.app/Contents/MacOS/zoom.us"))
+        XCTAssertTrue(AudioSourceApps.owns(
+            bundlePath: zoom, executablePath: "/Applications/zoom.us.app/Contents/Frameworks/aomhost.app/Contents/MacOS/aomhost"))
+        XCTAssertTrue(AudioSourceApps.owns(bundlePath: zoom + "/", executablePath: "/Applications/zoom.us.app/Contents/MacOS/zoom.us"))
+    }
+
+    func testOtherAppsAreNotMistakenForHelpers() {
+        // A neighbour whose path merely starts with the same characters is a different app.
+        XCTAssertFalse(AudioSourceApps.owns(
+            bundlePath: "/Applications/Google Chrome.app",
+            executablePath: "/Applications/Google Chrome.app Canary/Contents/MacOS/Google Chrome Canary"))
+        XCTAssertFalse(AudioSourceApps.owns(bundlePath: "/Applications/zoom.us.app", executablePath: "/usr/bin/afplay"))
+        XCTAssertFalse(AudioSourceApps.owns(bundlePath: "/Applications/zoom.us.app", executablePath: ""))
+    }
+
+    func testAnAppThatIsNotRunningHasNothingToRecord() {
+        XCTAssertTrue(AudioSourceApps.processObjects(forBundleID: "com.avendesta.rekord.no-such-app").isEmpty)
+        XCTAssertEqual(AudioSourceApps.name(forBundleID: "com.avendesta.rekord.no-such-app"), "com.avendesta.rekord.no-such-app")
+    }
+
+    func testRekordDoesNotOfferItselfOrSafari() {
+        let listed = Set(AudioSourceApps.all().map(\.bundleID))
+        XCTAssertFalse(listed.contains(Bundle.main.bundleIdentifier ?? ""))
+        XCTAssertFalse(listed.contains("com.apple.Safari"))
     }
 }
 
