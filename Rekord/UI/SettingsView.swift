@@ -10,6 +10,7 @@ struct SettingsView: View {
 
     @ObservedObject var hotkey: HotkeyPopupController
     @ObservedObject var store: RecordingStore
+    @ObservedObject var session: RecordingSession
     @AppStorage(AppSettings.compressKey) private var compressRecordings = true
     @AppStorage(AppSettings.audioRetentionDaysKey) private var audioRetentionDays = 7
     @AppStorage(AppSettings.inputDeviceUIDKey) private var inputDeviceUID = ""
@@ -98,15 +99,21 @@ struct SettingsView: View {
                             .truncationMode(.middle)
                             .foregroundStyle(.secondary)
                             .help(AppSettings.outputFolder.path)
-                        if !outputFolderPath.isEmpty {
-                            Button("Reset") {
-                                AppSettings.setOutputFolder(nil)
-                                outputFolderPath = ""
+                        // Not while recording: the recording would finish in a folder that is no
+                        // longer listed, and the sandboxed build would lose its access to it mid-write.
+                        Group {
+                            if !outputFolderPath.isEmpty {
+                                Button("Reset") {
+                                    AppSettings.setOutputFolder(nil)
+                                    outputFolderPath = ""
+                                }
                             }
+                            Button("Choose…", action: chooseFolder)
                         }
-                        Button("Choose…", action: chooseFolder)
+                        .disabled(session.isRecording || session.state == .starting)
                     }
                 }
+                if session.isRecording { note("The folder can be changed once the recording has stopped.") }
             }
         }
     }
