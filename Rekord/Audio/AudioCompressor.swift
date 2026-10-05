@@ -82,6 +82,7 @@ enum AudioCompressor {
         guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 65_536) else { throw CompressorError.lengthMismatch }
         while input.framePosition < input.length {
             try input.read(into: buffer)
+            guard buffer.frameLength > 0 else { break }  // a truncated file; the length check rejects the result
             try output.write(from: buffer)
         }
     }
