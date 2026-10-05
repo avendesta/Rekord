@@ -196,6 +196,24 @@ final class StorageTests: XCTestCase {
         XCTAssertFalse(store.recordings.first?.isCombined ?? true)
     }
 
+    func testARecordingThatWasNeverStoppedIsListedWithItsRealLength() throws {
+        // What a crash leaves behind: the session.json written at the start, and the audio so far.
+        let folder = root.appendingPathComponent("crashed", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try writeTestTrack(at: folder.appendingPathComponent("system.caf"), seconds: 0.5, level: 0.1)
+        try RecordingSession.Metadata(
+            startDate: Date(), durationSeconds: 0, includeMicrophone: false, files: ["system.caf"],
+            systemSampleRate: 48_000, micSampleRate: nil, micOffsetSeconds: nil
+        ).write(to: folder)
+        UserDefaults.standard.set(root.path, forKey: AppSettings.outputFolderKey)
+
+        let store = RecordingStore()
+        store.reload()
+
+        XCTAssertEqual(store.recordings.first?.duration ?? 0, 0.5, accuracy: 0.01)
+        XCTAssertEqual(try RecordingSession.Metadata.read(from: folder).durationSeconds, 0.5, accuracy: 0.01)
+    }
+
     func testStoreMixesMicRecordingsOnItsOwn() throws {
         try writeSession("system-only", start: "2026-09-20T10:00:00Z", in: root)
         let withMic = root.appendingPathComponent("with-mic", isDirectory: true)

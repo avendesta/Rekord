@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 import Combine
 import Foundation
 
@@ -21,6 +22,7 @@ final class RecordingStore: ObservableObject {
     @Published private(set) var compressing: URL?
 
     private var sessionObserver: AnyCancellable?
+    private weak var session: RecordingSession?
 
     static var rootFolder: URL { AppSettings.outputFolder }
 
@@ -28,6 +30,7 @@ final class RecordingStore: ObservableObject {
     /// transcribed even if no window is open. Deferred a turn: `stop()` writes session.json after
     /// it changes state.
     func follow(_ session: RecordingSession) {
+        self.session = session
         sessionObserver = session.$state
             .removeDuplicates()
             .scan((State.idle, State.idle)) { ($0.1, $1) }
@@ -53,10 +56,13 @@ final class RecordingStore: ObservableObject {
         let folders = (try? FileManager.default.contentsOfDirectory(
             at: Self.rootFolder, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)) ?? []
 
-        // Folders without a readable session.json (old test dirs, crashed sessions) are skipped.
+        // The recording in progress has its session.json already, but isn't one to list, mix or play yet.
+        let active = session.flatMap { $0.isRecording ? $0.lastSessionFolder?.path : nil }
+
+        // Folders without a readable session.json (old test dirs) are skipped.
         recordings = folders.compactMap { folder in
-            guard let metadata = try? RecordingSession.Metadata.read(from: folder) else { return nil }
-            return Recording(folder: folder, metadata: metadata)
+            guard folder.path != active, let metadata = try? RecordingSession.Metadata.read(from: folder) else { return nil }
+            return Recording(folder: folder, metadata: Self.finished(metadata, in: folder))
         }
         .sorted { $0.startDate > $1.startDate }
 
@@ -68,6 +74,19 @@ final class RecordingStore: ObservableObject {
             combine(recording)
         }
         compressNext()
+    }
+
+    /// A recording that was never stopped (a crash, a force quit) still has the zero length written
+    /// when it started. Its real length is the system track's, which CAF keeps readable unclosed.
+    private static func finished(_ metadata: RecordingSession.Metadata, in folder: URL) -> RecordingSession.Metadata {
+        guard metadata.durationSeconds == 0, let url = Track.system.url(in: folder),
+              let file = try? AVAudioFile(forReading: url), file.length > 0 else { return metadata }
+        // ponytail: the mic/system offset of a crashed recording is unknown, so its mix assumes
+        // both tracks started together. Write the offset into session.json mid-recording if that shows.
+        var metadata = metadata
+        metadata.durationSeconds = Double(file.length) / file.fileFormat.sampleRate
+        try? metadata.write(to: folder)
+        return metadata
     }
 
     /// Moves the audio of old recordings to the Trash, keeping the transcript and the name. Only
