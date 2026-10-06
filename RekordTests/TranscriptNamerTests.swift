@@ -67,10 +67,12 @@ final class TranscriptNamerTests: XCTestCase {
         XCTAssertEqual(try RecordingSession.Metadata.read(from: folder).name, "My own name")
     }
 
-    func testNamingIsOffUntilChosen() {
+    func testNamingIsOnUnlessTurnedOff() {
         let saved = UserDefaults.standard.object(forKey: AppSettings.autoNameKey)
         defer { UserDefaults.standard.set(saved, forKey: AppSettings.autoNameKey) }
         UserDefaults.standard.removeObject(forKey: AppSettings.autoNameKey)
+        XCTAssertTrue(AppSettings.autoNameRecordings)
+        UserDefaults.standard.set(false, forKey: AppSettings.autoNameKey)
         XCTAssertFalse(AppSettings.autoNameRecordings)
     }
 }

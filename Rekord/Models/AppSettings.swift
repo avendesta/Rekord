@@ -122,9 +122,10 @@ enum AppSettings {
         UserDefaults.standard.object(forKey: audioRetentionDaysKey) as? Int ?? 7
     }
 
-    /// Off unless chosen: a recording without a name is given one from its transcript.
+    /// On unless turned off: a recording without a name is given one from its transcript. Where the
+    /// model isn't available nothing happens, whatever this says.
     static var autoNameRecordings: Bool {
-        UserDefaults.standard.object(forKey: autoNameKey) as? Bool ?? false
+        UserDefaults.standard.object(forKey: autoNameKey) as? Bool ?? true
     }
 
     static var transcribeRecordings: Bool {
