@@ -14,6 +14,10 @@ struct RecordingRowView: View {
     var onOpenTranscript: () -> Void = {}
     var onCopyTranscript: () -> Void = {}
     var onRename: (String) -> Void = { _ in }
+    /// The name field has closed, saved or not, so the window can take the keyboard back.
+    var onEndRename: () -> Void = {}
+    /// The row the arrow keys are on.
+    var isSelected = false
     let onReveal: () -> Void
     /// Not confirmed: the window offers Undo.
     let onDelete: () -> Void
@@ -86,6 +90,7 @@ struct RecordingRowView: View {
         .padding(.vertical, 5)
         .padding(.horizontal, 6)
         .background(background, in: RoundedRectangle(cornerRadius: 6))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
         .contentShape(Rectangle())
         .onHover { isHovered = $0 }
         .contextMenu {
@@ -108,8 +113,9 @@ struct RecordingRowView: View {
         }
     }
 
-    /// The row being listened to stays marked, so its scrubber reads as part of it.
+    /// The selected row is marked; so is the one being listened to, so its scrubber reads as part of it.
     private var background: Color {
+        if isSelected { return Color.accentColor.opacity(0.18) }
         if playback == .playing || playback == .paused { return Color.accentColor.opacity(0.08) }
         return isHovered ? Color.primary.opacity(0.05) : .clear
     }
@@ -146,6 +152,7 @@ struct RecordingRowView: View {
         guard isRenaming else { return }
         isRenaming = false
         if save, draftName.trimmingCharacters(in: .whitespacesAndNewlines) != (recording.name ?? "") { onRename(draftName) }
+        onEndRename()
     }
 
     private var playButton: some View {

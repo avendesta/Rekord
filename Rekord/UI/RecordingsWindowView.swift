@@ -10,6 +10,9 @@ struct RecordingsWindowView: View {
     /// it open with `undoTimeLeft` still to run.
     @State private var undoDeadline: Date?
     @State private var undoTimeLeft: TimeInterval = 0
+    /// The row the keyboard acts on. Not a List's selection: a List hides tooltips on its controls.
+    @State private var selection: URL?
+    @FocusState private var listFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
@@ -24,7 +27,8 @@ struct RecordingsWindowView: View {
                 }
             } else {
                 // A plain scrolling stack, not a List: tooltips don't appear on controls inside List
-                // rows, and nothing here needs a List's selection or editing.
+                // rows. The selection and the keys are done by hand instead.
+                ScrollViewReader { proxy in
                 ScrollView {
                     // Always grouped by day: the header carries the date, so rows only need the time.
                     LazyVStack(alignment: .leading, spacing: 2, pinnedViews: .sectionHeaders) {
@@ -49,12 +53,24 @@ struct RecordingsWindowView: View {
                 }
                 // Clicking away from a name being edited ends the edit, which saves it.
                 .contentShape(Rectangle())
-                .onTapGesture { NSApp.keyWindow?.makeFirstResponder(nil) }
+                .onTapGesture {
+                    NSApp.keyWindow?.makeFirstResponder(nil)
+                    takeKeyboard()
+                }
+                .focusable()
+                .focused($listFocused)
+                .focusEffectDisabled()
+                .onKeyPress(phases: [.down, .repeat], action: handleKey)
+                .onChange(of: selection) { if let selection { proxy.scrollTo(selection) } }
+                }
             }
         }
         .frame(minWidth: 400, minHeight: 220)
         .navigationSubtitle(store.recordings.isEmpty ? "" : "\(store.recordings.count) recording\(store.recordings.count == 1 ? "" : "s")")
-        .onAppear { store.reload() }
+        .onAppear {
+            store.reload()
+            takeKeyboard()
+        }
         .onDisappear {
             player.stop()
             dismissUndo()
@@ -95,7 +111,46 @@ struct RecordingsWindowView: View {
         .onChange(of: session.isRecording) { if session.isRecording { player.stop() } }
         .onChange(of: store.recordings.map(\.id)) {
             if let active = player.activeID, !store.recordings.contains(where: { $0.id == active }) { player.stop() }
+            if let selection, !store.recordings.contains(where: { $0.id == selection }) { self.selection = nil }
         }
+    }
+
+    /// Focused a turn later, once whatever had the keyboard has let go of it.
+    private func takeKeyboard() {
+        DispatchQueue.main.async { listFocused = true }
+    }
+
+    /// Up and down move the selection, Space plays or pauses it, Delete moves it to the Trash.
+    private func handleKey(_ press: KeyPress) -> KeyPress.Result {
+        // Typing in a name being edited belongs to the field.
+        if NSApp.keyWindow?.firstResponder is NSText { return .ignored }
+        let recordings = store.recordings
+        guard !recordings.isEmpty else { return .ignored }
+        let index = selection.flatMap { id in recordings.firstIndex { $0.id == id } }
+        // The Delete key arrives as U+007F, which SwiftUI's `.delete` does not match.
+        if press.key == .deleteForward || press.characters == "\u{7F}" {
+            guard press.modifiers.subtracting(.command).isEmpty, let index else { return .ignored }
+            if press.phase == .down { trash(recordings[index]) }
+            return .handled
+        }
+        switch press.key {
+        case .upArrow, .downArrow:
+            guard press.modifiers.isEmpty else { return .ignored }
+            let step = press.key == .downArrow ? 1 : -1
+            let next = index.map { min(max($0 + step, 0), recordings.count - 1) } ?? (step > 0 ? 0 : recordings.count - 1)
+            selection = recordings[next].id
+        case .space:
+            guard press.modifiers.isEmpty, let index else { return .ignored }
+            if press.phase == .down { togglePlay(recordings[index]) }  // a held key doesn't flicker it
+        default:
+            return .ignored
+        }
+        return .handled
+    }
+
+    private func togglePlay(_ recording: Recording) {
+        if case .unavailable = playbackState(of: recording) { return NSSound.beep() }
+        withAnimation(.easeInOut(duration: 0.15)) { player.toggle(recording) }
     }
 
     /// Straight to the Trash, with no dialog: an Undo message follows, and the recording can also
@@ -103,8 +158,13 @@ struct RecordingsWindowView: View {
     private func trash(_ recording: Recording) {
         if recording.id == player.activeID { player.stop() }
         // One animation for both: the rows close the gap as the Undo message comes in.
+        let position = store.recordings.firstIndex { $0.id == recording.id }
         withAnimation(.easeOut(duration: 0.2)) { undoable = store.moveToTrash([recording]) }  // empty if nothing was actually trashed
         undoDeadline = Date().addingTimeInterval(7)
+        // The next row takes over the selection, so Delete can be pressed again down the list.
+        if !undoable.isEmpty, let position, !store.recordings.isEmpty {
+            selection = store.recordings[min(position, store.recordings.count - 1)].id
+        }
     }
 
     private func undo() {
@@ -112,6 +172,8 @@ struct RecordingsWindowView: View {
         dismissUndo()
         let restored = withAnimation(.easeOut(duration: 0.2)) { store.restore(items) }
         if !restored { NSSound.beep() }
+        if let first = items.first?.original { selection = first }
+        takeKeyboard()
     }
 
     private func dismissUndo() {
@@ -124,7 +186,7 @@ struct RecordingsWindowView: View {
             recording: recording,
             playback: playbackState(of: recording),
             player: player,
-            onTogglePlay: { withAnimation(.easeInOut(duration: 0.15)) { player.toggle(recording) } },
+            onTogglePlay: { togglePlay(recording) },
             activity: store.combining.contains(recording.id) ? "Preparing…"
                 : store.compressing == recording.id ? "Converting…" : nil,
             transcript: transcriptState(of: recording),
@@ -132,10 +194,16 @@ struct RecordingsWindowView: View {
             onOpenTranscript: { store.openTranscript(recording) },
             onCopyTranscript: { store.copyTranscript(recording) },
             onRename: { store.rename(recording, to: $0) },
+            onEndRename: takeKeyboard,
+            isSelected: selection == recording.id,
             onReveal: { store.reveal(recording) },
             onDelete: { trash(recording) }
         )
         .frame(maxWidth: 640, alignment: .leading)
+        .simultaneousGesture(TapGesture().onEnded {
+            selection = recording.id
+            takeKeyboard()
+        })
     }
 
     private func playbackState(of recording: Recording) -> RecordingRowView.PlaybackState {
