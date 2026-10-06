@@ -189,9 +189,37 @@ final class StorageTests: XCTestCase {
         try? FileManager.default.removeItem(at: root)
     }
 
-    func testOutputFolderDefaultsToDocumentsRekord() {
-        XCTAssertEqual(AppSettings.outputFolder, AppSettings.defaultOutputFolder)
-        XCTAssertTrue(AppSettings.defaultOutputFolder.path.hasSuffix("Documents/Rekord"))
+    /// Runs `body` with the default-folder decision and the recorded-before flag set as given, then puts them back.
+    private func withDefaultFolderState(decided: String?, hasRecorded: Bool, _ body: () -> Void) {
+        let defaults = UserDefaults.standard
+        let keys = [AppSettings.defaultFolderKey, AppSettings.systemAudioSeenKey]
+        let saved = keys.map { defaults.object(forKey: $0) }
+        defer { zip(keys, saved).forEach { defaults.set($1, forKey: $0) } }
+        defaults.set(decided, forKey: AppSettings.defaultFolderKey)
+        defaults.set(hasRecorded ? "yes" : nil, forKey: AppSettings.systemAudioSeenKey)
+        body()
+    }
+
+    func testANewMacSavesToMusicRekordWhichNeedsNoPermission() {
+        withDefaultFolderState(decided: nil, hasRecorded: false) {
+            XCTAssertTrue(AppSettings.defaultOutputFolder.path.hasSuffix("Music/Rekord"))
+            XCTAssertEqual(AppSettings.outputFolder, AppSettings.defaultOutputFolder)
+        }
+    }
+
+    func testAMacThatHasRecordedKeepsDocumentsRekord() {
+        withDefaultFolderState(decided: nil, hasRecorded: true) {
+            XCTAssertTrue(AppSettings.defaultOutputFolder.path.hasSuffix("Documents/Rekord"))
+        }
+    }
+
+    func testTheDefaultIsDecidedOnceAndRecordingDoesNotMoveIt() {
+        withDefaultFolderState(decided: nil, hasRecorded: false) {
+            XCTAssertTrue(AppSettings.defaultOutputFolder.path.hasSuffix("Music/Rekord"))
+            // Recording sets this flag; the folder the next launch uses must stay where it was decided.
+            UserDefaults.standard.set("yes", forKey: AppSettings.systemAudioSeenKey)
+            XCTAssertTrue(AppSettings.defaultOutputFolder.path.hasSuffix("Music/Rekord"))
+        }
     }
 
     func testFolderIsShownRelativeToHome() {

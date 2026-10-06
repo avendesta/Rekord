@@ -37,7 +37,7 @@ Everything happens on your Mac: the recording, the transcript (macOS 26 or later
 
 [Rekord Audio Recorder on the Mac App Store](https://apps.apple.com/us/app/rekord-audio-recorder/id6815646602)
 
-The App Store version runs in Apple's App Sandbox, so until you choose a folder in Settings it saves recordings inside its own container (`~/Library/Containers/com.avendesta.rekord/Data/Documents/Rekord`) rather than `~/Documents/Rekord`.
+The App Store version runs in Apple's App Sandbox, so until you choose a folder in Settings it saves recordings inside its own container (`~/Library/Containers/com.avendesta.rekord/Data/Music/Rekord`) rather than `~/Music/Rekord`.
 
 **Direct download:**
 
@@ -107,7 +107,7 @@ Everyone on the other end of a call is "Others"; Rekord doesn't tell them apart.
 
 **Find your recordings** under **Recent Recordings** in the menu, grouped by day. Double-click a recording's time to give it a name, or right-click and choose **Suggest a Name** to have one made from its transcript on your Mac; the name is a label in Rekord only, and the files on disk keep their names. From there you can play a recording, open its transcript, reveal it in Finder or move it to the Trash. The list works from the keyboard: the up and down arrows choose a recording, Space plays or pauses it, and Delete moves it to the Trash. Deleted recordings go to the Trash, with an **Undo** for a few seconds. When a recording includes the microphone, Rekord also mixes both tracks into one file for you, a moment after you stop.
 
-Each recording is a folder in `~/Documents/Rekord/` (or the folder you chose in Settings), named by start time:
+Each recording is a folder in `~/Music/Rekord/` (or the folder you chose in Settings), named by start time. Music is used because macOS asks permission before an app may use Documents; a Mac that recorded with an earlier version keeps using `~/Documents/Rekord/`, so nothing moves:
 
 ```
 2026-09-23_14-30-00/
