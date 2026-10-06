@@ -2,6 +2,9 @@
 
 Each release's notes come from its `## <version>` section here, so add one before bumping `MARKETING_VERSION`.
 
+## 1.8.5
+- **The recording you are listening to stands out.** Its play button turns solid blue with a Pause symbol while it plays, and a blue outline with a Play symbol while it is paused. The row you have chosen with the arrow keys is now a neutral grey, so blue means playback only.
+
 ## 1.8.4
 - **Use the Recordings list from the keyboard.** The up and down arrows choose a recording, **Space** plays or pauses it, and **Delete** moves it to the Trash, with the usual Undo. The chosen row is highlighted, and clicking a row chooses it.
 - **A damaged recording no longer crashes Rekord.** A recording whose `session.json` held an absurd length or offset used to crash the app when its row was drawn, and again each time it was reopened. Such a recording is now left out of the list; its files stay on disk.
