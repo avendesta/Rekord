@@ -2,6 +2,11 @@
 
 Each release's notes come from its `## <version>` section here, so add one before bumping `MARKETING_VERSION`.
 
+## 1.8.4
+- **Use the Recordings list from the keyboard.** The up and down arrows choose a recording, **Space** plays or pauses it, and **Delete** moves it to the Trash, with the usual Undo. The chosen row is highlighted, and clicking a row chooses it.
+- **A damaged recording no longer crashes Rekord.** A recording whose `session.json` held an absurd length or offset used to crash the app when its row was drawn, and again each time it was reopened. Such a recording is now left out of the list; its files stay on disk.
+- **A linked transcript is no longer opened.** If `transcript.txt` was a link to some other file, the Transcript button opened that file in its own app. Only a plain file in the recording's folder counts as a transcript now, which also stops a link from letting old audio be removed.
+
 ## 1.8.3
 - **Help is one click away.** Settings > General now has links to the guide, to report a problem, and to the privacy policy, next to the version.
 

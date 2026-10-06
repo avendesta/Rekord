@@ -58,6 +58,50 @@ final class MetadataTests: XCTestCase {
         return decoder
     }
 
+    func testALinkedTranscriptIsNotATranscript() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("rekord-link-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let recording = Recording(folder: folder, metadata: .init(
+            startDate: Date(), durationSeconds: 5, includeMicrophone: false, files: [], systemSampleRate: 48_000,
+            micSampleRate: nil, micOffsetSeconds: nil))
+        let transcript = folder.appendingPathComponent("transcript.txt")
+
+        XCTAssertFalse(recording.hasTranscript)
+        try "hello\n".write(to: transcript, atomically: true, encoding: .utf8)
+        XCTAssertTrue(recording.hasTranscript)
+        XCTAssertNotNil(recording.transcriptForSharing())
+
+        // The same name as a link to some other file, which is what a planted folder would hold.
+        let other = folder.appendingPathComponent("other.command")
+        try "#!/bin/sh\n".write(to: other, atomically: true, encoding: .utf8)
+        try FileManager.default.removeItem(at: transcript)
+        try FileManager.default.createSymbolicLink(at: transcript, withDestinationURL: other)
+        XCTAssertFalse(recording.hasTranscript)
+        XCTAssertNil(recording.transcriptFile)
+        XCTAssertNil(recording.transcriptForSharing())
+    }
+
+    func testOutOfRangeNumbersMakeTheFileUnreadable() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("rekord-limits-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        func read(_ key: String? = nil, _ value: Double = 0) throws -> RecordingSession.Metadata {
+            var json: [String: Any] = ["startDate": "2026-10-05T12:00:00Z", "durationSeconds": 5.0, "includeMicrophone": true,
+                                       "files": [String](), "systemSampleRate": 48_000.0, "micSampleRate": 48_000.0, "micOffsetSeconds": 0.1]
+            if let key { json[key] = value }
+            try JSONSerialization.data(withJSONObject: json).write(to: folder.appendingPathComponent("session.json"))
+            return try RecordingSession.Metadata.read(from: folder)
+        }
+        XCTAssertEqual(try read().durationSeconds, 5)
+        XCTAssertThrowsError(try read("durationSeconds", 1e30))
+        XCTAssertThrowsError(try read("durationSeconds", -1))
+        XCTAssertThrowsError(try read("micOffsetSeconds", 1e30))
+        XCTAssertThrowsError(try read("micOffsetSeconds", -1e30))
+        XCTAssertThrowsError(try read("systemSampleRate", 0))
+        XCTAssertThrowsError(try read("micSampleRate", 1e30))
+    }
+
     func testRoundTripKeepsEveryField() throws {
         let original = RecordingSession.Metadata(
             startDate: Date(timeIntervalSince1970: 1_700_000_000), durationSeconds: 12.5, includeMicrophone: true,
