@@ -152,7 +152,9 @@ struct RecordingRowView: View {
     private func finishRenaming(save: Bool) {
         guard isRenaming else { return }
         isRenaming = false
-        if save, draftName.trimmingCharacters(in: .whitespacesAndNewlines) != (recording.name ?? "") { onRename(draftName) }
+        // Confirming a generated name as it is also makes it the user's own, so it is kept.
+        if save, draftName.trimmingCharacters(in: .whitespacesAndNewlines) != (recording.name ?? "")
+            || (save && recording.metadata.nameIsGenerated == true) { onRename(draftName) }
     }
 
     private var playButton: some View {
