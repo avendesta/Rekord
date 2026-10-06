@@ -30,6 +30,9 @@ struct RecordingRowView: View {
     }
 
     @State private var isHovered = false
+    /// The pointer is on the play button, or on the Transcript label, themselves rather than the row.
+    @State private var playHovered = false
+    @State private var transcriptHovered = false
     @State private var isRenaming = false
     @State private var draftName = ""
     @FocusState private var nameFieldFocused: Bool
@@ -159,11 +162,13 @@ struct RecordingRowView: View {
                 .foregroundStyle(playback == .playing ? Color.white : playback == .paused ? Color.accentColor : unavailable != nil ? Color.primary.opacity(0.3) : Color.primary)
                 .frame(width: 26, height: 26)
                 .background(playback == .playing ? Color.accentColor
-                            : playback == .paused ? Color.accentColor.opacity(0.15) : Color.primary.opacity(0.08), in: Circle())
+                            : playback == .paused ? Color.accentColor.opacity(0.15)
+                            : Color.primary.opacity(playHovered && unavailable == nil ? 0.16 : 0.08), in: Circle())
                 .overlay(Circle().strokeBorder(Color.accentColor, lineWidth: playback == .paused ? 1 : 0))
                 .contentShape(Circle())
         }
         .buttonStyle(.borderless)
+        .onHover { playHovered = $0 }
         .disabled(unavailable != nil)
         .help(unavailable ?? (playback == .playing ? "Pause" : "Play"))
         .padding(.top, 3)
@@ -195,8 +200,16 @@ struct RecordingRowView: View {
             .accessibilityElement(children: .combine)
             .accessibilityLabel("Transcription in progress")
         case .ready?:
-            Button(action: onOpenTranscript) { quiet(Label("Transcript", systemImage: "doc.text")) }
+            // Quiet text that darkens when the pointer is on it, not just anywhere on the row. Plain,
+            // not borderless: a borderless button dims its label further, until it is hard to read.
+            Button(action: onOpenTranscript) {
+                Label("Transcript", systemImage: "doc.text")
+                    .font(.subheadline)
+                    .foregroundStyle(transcriptHovered ? Color.primary : Color.secondary)
+                    .contentShape(Rectangle())
+            }
                 .buttonStyle(.plain)
+                .onHover { transcriptHovered = $0 }
                 .help("Open Transcript")
                 .accessibilityLabel("Open Transcript")
         case .failed(let reason)?:
@@ -209,11 +222,6 @@ struct RecordingRowView: View {
         case nil:
             EmptyView()
         }
-    }
-
-    private func quiet(_ label: some View) -> some View {
-        // In a plain button: a borderless one dims this further, until it is hard to read.
-        label.font(.subheadline).foregroundStyle(isActive ? .primary : .secondary).contentShape(Rectangle())
     }
 
     private var duration: String {
