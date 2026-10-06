@@ -2,6 +2,9 @@
 
 Each release's notes come from its `## <version>` section here, so add one before bumping `MARKETING_VERSION`.
 
+## 1.8.1
+- The input device in Settings > Audio is locked while a recording is running, like the microphone menu. A recording keeps the microphone it started with, so changing it there used to make the name shown disagree with what was being recorded.
+
 ## 1.8.0
 - **Choose the microphone from the menu.** The microphone's name in the menu is now a list of your input devices: click it to switch, for example to your headset, right before you record. **System Default** follows your Mac's input. It is the same setting as Settings > Audio, and it can't be changed while a recording is running.
 
