@@ -112,9 +112,9 @@ final class RecordingStore: ObservableObject {
     }
 
     private static func transcriptCanReplaceAudio(_ recording: Recording, writtenBefore cutoff: Date) -> Bool {
-        guard let text = try? String(contentsOf: recording.transcriptURL, encoding: .utf8),
+        guard let url = recording.transcriptFile, let text = try? String(contentsOf: url, encoding: .utf8),
               text.trimmingCharacters(in: .whitespacesAndNewlines) != Transcript.noSpeech,
-              let written = try? FileManager.default.attributesOfItem(atPath: recording.transcriptURL.path)[.modificationDate] as? Date
+              let written = try? FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate] as? Date
         else { return false }
         return written < cutoff
     }
@@ -214,7 +214,8 @@ final class RecordingStore: ObservableObject {
     }
 
     func openTranscript(_ recording: Recording) {
-        NSWorkspace.shared.open(recording.transcriptURL)
+        guard let url = recording.transcriptFile else { return NSSound.beep() }
+        NSWorkspace.shared.open(url)
     }
 
     func reveal(_ recording: Recording) {
