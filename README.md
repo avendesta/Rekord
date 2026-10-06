@@ -87,6 +87,8 @@ Click a row, press `1` or `2`, or use the arrow keys and Return. Esc cancels. Re
 
 **Record one app.** Rekord normally records everything your Mac plays. To record a single app, such as your meeting app, choose it under **Source** in the menu; the list shows the open apps that can play audio. Notification sounds and music from other apps then stay out of the recording. Rekord remembers the choice and the shortcut popup shows it. The app has to be open when you start: if it isn't, Rekord tells you instead of recording everything. A meeting in a browser records every tab of that browser, and Safari can't be chosen, because its audio comes from a shared system process.
 
+**Choose the microphone.** The menu shows which microphone Rekord will use, under the **Microphone** switch. Click the name to pick another input, such as a headset, or **System Default** to follow your Mac's input. This changes only what Rekord records from, not your Mac's system input.
+
 Press the shortcut again during a recording to see the elapsed time, with **Pause** (or **P**) and **Stop**. Pausing leaves out everything until you resume; it is still one recording, and the timer counts recorded time only. The menu has the same Pause and Stop buttons. The menu bar icon shows pause bars while paused. Its inner dot is red while recording, or orange if no system audio is arriving (usually a missing permission).
 
 **Transcripts.** On macOS 26 or later, Rekord writes a `transcript.txt` for each new recording, on your Mac, a little after you stop. Older recordings have a **Transcribe** button in the Recordings list. With the microphone included, lines are labelled **Me** and **Others**:
