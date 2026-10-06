@@ -142,8 +142,12 @@ struct SettingsView: View {
                     }
                 } label: {
                     Text("Input device")
-                    Text("This doesn't change your Mac's system input device.")
+                    Text(session.isRecording ? "Stop the current recording to change the microphone."
+                         : "This doesn't change your Mac's system input device.")
                 }
+                // As in the menu: a recording keeps the microphone it started with, so a change now
+                // would only make the name shown disagree with what is being recorded.
+                .disabled(session.isRecording || session.state == .starting)
                 Toggle("Include microphone by default", isOn: $includeMicrophoneDefault)
             }
 
