@@ -14,8 +14,6 @@ struct RecordingRowView: View {
     var onOpenTranscript: () -> Void = {}
     var onCopyTranscript: () -> Void = {}
     var onRename: (String) -> Void = { _ in }
-    /// The name field has closed, saved or not, so the window can take the keyboard back.
-    var onEndRename: () -> Void = {}
     /// The row the arrow keys are on.
     var isSelected = false
     let onReveal: () -> Void
@@ -153,7 +151,6 @@ struct RecordingRowView: View {
         guard isRenaming else { return }
         isRenaming = false
         if save, draftName.trimmingCharacters(in: .whitespacesAndNewlines) != (recording.name ?? "") { onRename(draftName) }
-        onEndRename()
     }
 
     private var playButton: some View {
