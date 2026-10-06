@@ -47,7 +47,10 @@ final class MicRecorder {
         // A device that has been unplugged falls back to the default.
         if let uid = AppSettings.inputDeviceUID,
            let deviceID = AudioInputDevices.deviceID(forUID: uid),
-           let unit = inputNode.audioUnit {
+           let unit = inputNode.audioUnit,
+           // Left alone when the engine is on that device already, as it is when the chosen one is
+           // the system default: setting it again made the engine hang in start() now and then.
+           Self.currentDevice(of: unit) != deviceID {
             var device = deviceID
             Diagnostics.step("mic: setting device \(deviceID)")
             let status = AudioUnitSetProperty(unit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0,
@@ -108,6 +111,13 @@ final class MicRecorder {
         }
         isRecording = true
         Diagnostics.step("mic: started")
+    }
+
+    private static func currentDevice(of unit: AudioUnit) -> AudioObjectID? {
+        var device = AudioObjectID(kAudioObjectUnknown)
+        var size = UInt32(MemoryLayout<AudioObjectID>.size)
+        let status = AudioUnitGetProperty(unit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0, &device, &size)
+        return status == noErr ? device : nil
     }
 
     func stop() {
