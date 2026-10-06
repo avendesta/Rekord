@@ -2,6 +2,9 @@
 
 Each release's notes come from its `## <version>` section here, so add one before bumping `MARKETING_VERSION`.
 
+## 1.8.7
+- **The recording buttons respond to the pointer.** **Start Recording** and **Stop Recording** lighten a little when you point at them, and **Pause** darkens a little. Their size and shape don't change.
+
 ## 1.8.6
 - **The arrow keys work reliably in the Recordings list.** In 1.8.4 and 1.8.5 the up and down arrows, Space and Delete could stop responding after a click or after switching windows. They now work whenever the Recordings window is the active one.
 - **You can tell a transcript from a missing one at a glance.** **Transcribe** is now a small bordered button, while **Transcript**, for one that exists, stays plain text. **Try Again** is a bordered button too.

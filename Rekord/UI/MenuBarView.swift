@@ -11,6 +11,9 @@ struct MenuBarView: View {
     @State private var inputDevices: [AudioInputDevices.Device] = []
     @AppStorage(AppSettings.audioSourceBundleIDKey) private var sourceBundleID = ""
     @State private var sourceApps: [AudioSourceApps.App] = []
+    @State private var startHovered = false
+    @State private var pauseHovered = false
+    @State private var stopHovered = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -89,6 +92,9 @@ struct MenuBarView: View {
                         .frame(width: 78)  // one width for both words, so the buttons don't shift
                 }
                 .buttonStyle(.bordered)
+                // Its fill is light, so under the pointer it darkens rather than lightens.
+                .brightness(pauseHovered ? -0.04 : 0)
+                .onHover { pauseHovered = $0 }
                 Button {
                     session.stop()
                 } label: {
@@ -98,6 +104,8 @@ struct MenuBarView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.red)
+                .brightness(stopHovered ? 0.06 : 0)
+                .onHover { stopHovered = $0 }
             }
             .controlSize(.large)
         } else {
@@ -110,6 +118,10 @@ struct MenuBarView: View {
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
             .disabled(session.state == .starting)
+            // The system's button only has a pressed state; a touch lighter under the pointer shows it
+            // is live. Brightness leaves the white label white and the size and shape as they are.
+            .brightness(startHovered && session.state != .starting ? 0.06 : 0)
+            .onHover { startHovered = $0 }
         }
     }
 
