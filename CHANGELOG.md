@@ -2,6 +2,9 @@
 
 Each release's notes come from its `## <version>` section here, so add one before bumping `MARKETING_VERSION`.
 
+## 1.8.0
+- **Choose the microphone from the menu.** The microphone's name in the menu is now a list of your input devices: click it to switch, for example to your headset, right before you record. **System Default** follows your Mac's input. It is the same setting as Settings > Audio, and it can't be changed while a recording is running.
+
 ## 1.7.1
 - **A crash no longer hides a recording.** If Rekord or your Mac goes down mid-recording, what was captured is listed the next time Rekord opens. Before, the audio was on disk but never appeared in the app.
 - **Rekord stops and tells you when it can't save**, for example when the disk is full, instead of carrying on with nothing being written.
