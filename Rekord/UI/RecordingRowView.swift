@@ -175,24 +175,29 @@ struct RecordingRowView: View {
 
     @ViewBuilder
     private var transcriptControl: some View {
-        // Every state shows at rest, so the list can be scanned for what has a transcript;
-        // pointing at a row only makes its action stand out.
+        // Every state shows at rest, so the list can be scanned for what has a transcript. A transcript
+        // that exists is quiet text; one still to be made is a bordered button, so the two differ by
+        // shape and not only by wording.
         switch transcript {
         case .notStarted?:
-            Button(action: onTranscribe) { quiet(Label("Transcribe", systemImage: "text.badge.plus")) }
-                .buttonStyle(.plain)
+            Button(action: onTranscribe) { Label("Transcribe", systemImage: "waveform") }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
                 .help("Make a transcript of this recording")
+                .accessibilityLabel("Transcribe recording")
         case .queued?:
             Label("Waiting…", systemImage: "clock")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .help("Waiting for another transcript to finish")
+                .accessibilityLabel("Waiting to transcribe")
         case .inProgress?:
             HStack(spacing: 5) {
                 ProgressView().controlSize(.small)
                 Text("Transcribing…").font(.subheadline).foregroundStyle(.secondary)
             }
             .accessibilityElement(children: .combine)
+            .accessibilityLabel("Transcription in progress")
         case .ready?:
             Button(action: onOpenTranscript) { quiet(Label("Transcript", systemImage: "doc.text")) }
                 .buttonStyle(.plain)
@@ -201,7 +206,10 @@ struct RecordingRowView: View {
         case .failed(let reason)?:
             // A failure stays visible: it is a status, not just an action.
             Button(action: onTranscribe) { Label("Try Again", systemImage: "exclamationmark.triangle") }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
                 .help(reason)
+                .accessibilityLabel("Transcription failed. Try again.")
         case nil:
             EmptyView()
         }
