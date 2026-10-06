@@ -7,6 +7,8 @@ struct MenuBarView: View {
     var hotkeyError: String?
     @Environment(\.openWindow) private var openWindow
     @State private var micName = ""
+    @AppStorage(AppSettings.inputDeviceUIDKey) private var inputDeviceUID = ""
+    @State private var inputDevices: [AudioInputDevices.Device] = []
     @AppStorage(AppSettings.audioSourceBundleIDKey) private var sourceBundleID = ""
     @State private var sourceApps: [AudioSourceApps.App] = []
 
@@ -68,6 +70,7 @@ struct MenuBarView: View {
 
     private func refresh() {
         store.reload()
+        inputDevices = AudioInputDevices.all()
         micName = AudioInputDevices.currentInputName()
         sourceApps = AudioSourceApps.all()
     }
@@ -135,6 +138,37 @@ struct MenuBarView: View {
         .help(isLocked ? "Source can't be changed while recording." : "")
     }
 
+    /// The name of the microphone in use, which is also where to change it: a wrong one is
+    /// noticed here, just before recording. Same setting as Settings > Audio.
+    private var microphoneMenu: some View {
+        Menu {
+            Picker("Microphone", selection: $inputDeviceUID) {
+                ForEach(inputDevices) { Text($0.name).tag($0.uid) }
+                // A saved device that's currently unplugged: keep it selectable so the choice isn't lost.
+                if !inputDeviceUID.isEmpty, !inputDevices.contains(where: { $0.uid == inputDeviceUID }) {
+                    Text("Disconnected device (using default)").tag(inputDeviceUID)
+                }
+                Divider()
+                Text("System Default").tag("")
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+        } label: {
+            HStack(spacing: 3) {
+                Text(micName).lineLimit(1).truncationMode(.middle)
+                Image(systemName: "chevron.down").imageScale(.small)
+            }
+            .font(.caption)
+            .foregroundStyle(isLocked ? AnyShapeStyle(.secondary) : AnyShapeStyle(.tint))
+            .contentShape(Rectangle())
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .disabled(isLocked)
+        .onChange(of: inputDeviceUID) { micName = AudioInputDevices.currentInputName() }
+    }
+
     private var microphoneRow: some View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: session.includeMicrophone ? "mic.fill" : "mic.slash")
@@ -150,12 +184,7 @@ struct MenuBarView: View {
                         .buttonStyle(.link)
                         .font(.caption)
                 } else {
-                    Text(micName)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .opacity(session.includeMicrophone ? 1 : 0.6)
+                    microphoneMenu
                 }
             }
             Spacer(minLength: 8)
