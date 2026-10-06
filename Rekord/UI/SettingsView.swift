@@ -120,6 +120,12 @@ struct SettingsView: View {
 
             Section {
                 LabeledContent("Version", value: Self.version)
+                // The only way from the app to its help: App Store users never see the project page.
+                HStack(spacing: 16) {
+                    Link("Help", destination: URL(string: "https://github.com/avendesta/Rekord#using-rekord")!)
+                    Link("Report a Problem", destination: URL(string: "https://github.com/avendesta/Rekord/issues")!)
+                    Link("Privacy Policy", destination: URL(string: "https://github.com/avendesta/Rekord/blob/main/PRIVACY.md")!)
+                }
             }
         }
     }
