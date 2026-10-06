@@ -93,6 +93,7 @@ final class RecordingSession: ObservableObject {
     func start(includeMicrophone override: Bool? = nil) {
         guard state == .idle else { return }
         let wantsMic = override ?? includeMicrophone
+        Diagnostics.step("start requested (mic: \(wantsMic))")
 
         guard wantsMic else {
             beginRecording(includeMic: false)
@@ -131,6 +132,7 @@ final class RecordingSession: ObservableObject {
             return
         }
 
+        Diagnostics.step("session: folder created")
         pauseGate.reset()
         systemRecorder.pauseGate = pauseGate
         micRecorder.pauseGate = pauseGate
@@ -142,6 +144,7 @@ final class RecordingSession: ObservableObject {
                 try micRecorder.start(to: folder.appendingPathComponent("mic.caf"))
             }
         } catch {
+            Diagnostics.step("session: start failed, \(error.localizedDescription)")
             // Never leave a partial session behind: stop whatever started and drop the folder.
             systemRecorder.stop()
             micRecorder.stop()
@@ -168,6 +171,7 @@ final class RecordingSession: ObservableObject {
         // still listed; the store works out its length from the audio.
         try? metadata(duration: 0).write(to: folder)
         startSilenceMonitor()
+        Diagnostics.step("session: recording")
         #if DEBUG
         print("[Rekord] Recording started in \(folder.path) (mic: \(includeMic))")
         #endif
@@ -195,12 +199,14 @@ final class RecordingSession: ObservableObject {
         case .paused(let soFar): recorded = soFar
         case .idle, .starting: return
         }
+        Diagnostics.step("session: stopping")
         silenceMonitor?.cancel()
         systemSilenceWarning = false
         UserDefaults.standard.set(systemRecorder.sawAudio ? "yes" : "no", forKey: AppSettings.systemAudioSeenKey)
         systemRecorder.stop()
         micRecorder.stop()
         state = .idle
+        Diagnostics.step("session: stopped")
 
         guard let folder = lastSessionFolder else { return }
         let metadata = metadata(duration: recorded)  // paused time is not part of the recording

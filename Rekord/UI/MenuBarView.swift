@@ -69,10 +69,12 @@ struct MenuBarView: View {
     private var isLocked: Bool { session.isRecording || session.state == .starting }
 
     private func refresh() {
+        Diagnostics.step("menu: refreshing")
         store.reload()
         inputDevices = AudioInputDevices.all()
         micName = AudioInputDevices.currentInputName()
         sourceApps = AudioSourceApps.all()
+        Diagnostics.step("menu: refreshed")
     }
 
     @ViewBuilder
@@ -166,7 +168,11 @@ struct MenuBarView: View {
         .buttonStyle(.plain)
         .menuIndicator(.hidden)
         .disabled(isLocked)
-        .onChange(of: inputDeviceUID) { micName = AudioInputDevices.currentInputName() }
+        .onChange(of: inputDeviceUID) {
+            Diagnostics.step("menu: microphone changed (chosen: \(!inputDeviceUID.isEmpty))")
+            micName = AudioInputDevices.currentInputName()
+            Diagnostics.step("menu: microphone name read")
+        }
     }
 
     private var microphoneRow: some View {
