@@ -117,8 +117,23 @@ struct SettingsView: View {
                     if session.isRecording { Text("Stop the current recording to change this folder.") }
                 }
             }
+
+            Section {
+                LabeledContent("Version", value: Self.version)
+            }
         }
     }
+
+    /// "1.8.1 (18)", marked when it is a development build rather than a released one.
+    static let version: String = {
+        let info = Bundle.main.infoDictionary
+        let version = "\(info?["CFBundleShortVersionString"] as? String ?? "?") (\(info?["CFBundleVersion"] as? String ?? "?"))"
+        #if DEBUG
+        return version + " · Debug"
+        #else
+        return version
+        #endif
+    }()
 
     /// A folder inside the home folder is shown from there down, e.g. "Documents/Rekord".
     static func shortPath(_ url: URL, home: URL = FileManager.default.homeDirectoryForCurrentUser) -> String {
