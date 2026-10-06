@@ -2,6 +2,11 @@
 
 Each release's notes come from its `## <version>` section here, so add one before bumping `MARKETING_VERSION`.
 
+## 1.8.2
+- **Fixed a freeze on "Starting recording…".** After choosing a microphone by name in the menu or in Settings, Rekord could hang when a recording started, if that microphone was already your Mac's default input. If you were hit by this, a recording cut short by the freeze is listed the next time Rekord opens.
+- **The version is shown in Settings > General.**
+- Rekord now notes each step of starting a recording in the macOS log on your Mac, and when it stops responding, so a problem like this one can be traced. The notes hold step names and timings only, never audio or file names, and are not sent anywhere.
+
 ## 1.8.1
 - The input device in Settings > Audio is locked while a recording is running, like the microphone menu. A recording keeps the microphone it started with, so changing it there used to make the name shown disagree with what was being recorded.
 
