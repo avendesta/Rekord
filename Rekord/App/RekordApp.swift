@@ -31,12 +31,16 @@ struct RekordApp: App {
         Window("Recordings", id: "recordings") {
             RecordingsWindowView(store: store, session: session)
                 .background(TooltipsWhenInactive())
+                .onAppear { DockPresence.shared.opened("recordings") }
+                .onDisappear { DockPresence.shared.closed("recordings") }
         }
         .defaultSize(width: 480, height: 340)
 
         Window("Rekord Settings", id: "settings") {
             SettingsView(hotkey: hotkeyPopup, store: store, session: session)
                 .background(TooltipsWhenInactive())
+                .onAppear { DockPresence.shared.opened("settings") }
+                .onDisappear { DockPresence.shared.closed("settings") }
         }
         .windowResizability(.contentSize)
     }
