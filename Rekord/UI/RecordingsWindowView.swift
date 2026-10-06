@@ -12,7 +12,10 @@ struct RecordingsWindowView: View {
     @State private var undoTimeLeft: TimeInterval = 0
     /// The row the keyboard acts on. Not a List's selection: a List hides tooltips on its controls.
     @State private var selection: URL?
-    @FocusState private var listFocused: Bool
+    /// Arrow, Space and Delete keys are caught by a monitor while this window is the key one, not by
+    /// SwiftUI focus, which a click or the window changing hands can lose.
+    @State private var keyMonitor: Any?
+    @State private var windowBox = WindowBox()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -53,27 +56,23 @@ struct RecordingsWindowView: View {
                 }
                 // Clicking away from a name being edited ends the edit, which saves it.
                 .contentShape(Rectangle())
-                .onTapGesture {
-                    NSApp.keyWindow?.makeFirstResponder(nil)
-                    takeKeyboard()
-                }
-                .focusable()
-                .focused($listFocused)
-                .focusEffectDisabled()
-                .onKeyPress(phases: [.down, .repeat], action: handleKey)
+                .onTapGesture { NSApp.keyWindow?.makeFirstResponder(nil) }
                 .onChange(of: selection) { if let selection { proxy.scrollTo(selection) } }
                 }
             }
         }
         .frame(minWidth: 400, minHeight: 220)
         .navigationSubtitle(store.recordings.isEmpty ? "" : "\(store.recordings.count) recording\(store.recordings.count == 1 ? "" : "s")")
+        .background(WindowReader(box: windowBox))
         .onAppear {
             store.reload()
-            takeKeyboard()
+            installKeyMonitor()
         }
         .onDisappear {
             player.stop()
             dismissUndo()
+            if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
+            keyMonitor = nil
         }
         .overlay(alignment: .bottom) {
             if !undoable.isEmpty {
@@ -115,37 +114,39 @@ struct RecordingsWindowView: View {
         }
     }
 
-    /// Focused a turn later, once whatever had the keyboard has let go of it.
-    private func takeKeyboard() {
-        DispatchQueue.main.async { listFocused = true }
+    private func installKeyMonitor() {
+        guard keyMonitor == nil else { return }
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            event.window != nil && event.window === windowBox.window && handleKey(event) ? nil : event
+        }
     }
 
     /// Up and down move the selection, Space plays or pauses it, Delete moves it to the Trash.
-    private func handleKey(_ press: KeyPress) -> KeyPress.Result {
+    /// True when the key was used.
+    private func handleKey(_ event: NSEvent) -> Bool {
         // Typing in a name being edited belongs to the field.
-        if NSApp.keyWindow?.firstResponder is NSText { return .ignored }
+        if event.window?.firstResponder is NSText { return false }
+        // Arrow keys carry the function and numeric-pad flags on their own.
+        let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask).subtracting([.function, .numericPad])
         let recordings = store.recordings
-        guard !recordings.isEmpty else { return .ignored }
+        guard !recordings.isEmpty else { return false }
         let index = selection.flatMap { id in recordings.firstIndex { $0.id == id } }
-        // The Delete key arrives as U+007F, which SwiftUI's `.delete` does not match.
-        if press.key == .deleteForward || press.characters == "\u{7F}" {
-            guard press.modifiers.subtracting(.command).isEmpty, let index else { return .ignored }
-            if press.phase == .down { trash(recordings[index]) }
-            return .handled
-        }
-        switch press.key {
-        case .upArrow, .downArrow:
-            guard press.modifiers.isEmpty else { return .ignored }
-            let step = press.key == .downArrow ? 1 : -1
+        switch event.keyCode {
+        case 125, 126:  // down, up
+            guard modifiers.isEmpty else { return false }
+            let step = event.keyCode == 125 ? 1 : -1
             let next = index.map { min(max($0 + step, 0), recordings.count - 1) } ?? (step > 0 ? 0 : recordings.count - 1)
             selection = recordings[next].id
-        case .space:
-            guard press.modifiers.isEmpty, let index else { return .ignored }
-            if press.phase == .down { togglePlay(recordings[index]) }  // a held key doesn't flicker it
+        case 49:  // space
+            guard modifiers.isEmpty, let index else { return false }
+            if !event.isARepeat { togglePlay(recordings[index]) }  // a held key doesn't flicker it
+        case 51, 117:  // delete, forward delete
+            guard modifiers.subtracting(.command).isEmpty, let index else { return false }
+            if !event.isARepeat { trash(recordings[index]) }
         default:
-            return .ignored
+            return false
         }
-        return .handled
+        return true
     }
 
     private func togglePlay(_ recording: Recording) {
@@ -173,7 +174,6 @@ struct RecordingsWindowView: View {
         let restored = withAnimation(.easeOut(duration: 0.2)) { store.restore(items) }
         if !restored { NSSound.beep() }
         if let first = items.first?.original { selection = first }
-        takeKeyboard()
     }
 
     private func dismissUndo() {
@@ -194,16 +194,12 @@ struct RecordingsWindowView: View {
             onOpenTranscript: { store.openTranscript(recording) },
             onCopyTranscript: { store.copyTranscript(recording) },
             onRename: { store.rename(recording, to: $0) },
-            onEndRename: takeKeyboard,
             isSelected: selection == recording.id,
             onReveal: { store.reveal(recording) },
             onDelete: { trash(recording) }
         )
         .frame(maxWidth: 640, alignment: .leading)
-        .simultaneousGesture(TapGesture().onEnded {
-            selection = recording.id
-            takeKeyboard()
-        })
+        .simultaneousGesture(TapGesture().onEnded { selection = recording.id })
     }
 
     private func playbackState(of recording: Recording) -> RecordingRowView.PlaybackState {
@@ -252,5 +248,29 @@ struct RecordingsWindowView: View {
         style.timeZone = calendar.timeZone
         if !calendar.isDate(date, equalTo: now, toGranularity: .year) { style = style.year() }
         return date.formatted(style)
+    }
+}
+
+/// Holds the window the view is in, without redrawing anything when it is found.
+private final class WindowBox {
+    weak var window: NSWindow?
+}
+
+private struct WindowReader: NSViewRepresentable {
+    let box: WindowBox
+    func makeNSView(context: Context) -> NSView { Finder(box) }
+    func updateNSView(_ view: NSView, context: Context) {}
+
+    private final class Finder: NSView {
+        let box: WindowBox
+        init(_ box: WindowBox) {
+            self.box = box
+            super.init(frame: .zero)
+        }
+        required init?(coder: NSCoder) { fatalError() }
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            box.window = window
+        }
     }
 }

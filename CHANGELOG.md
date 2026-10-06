@@ -2,6 +2,11 @@
 
 Each release's notes come from its `## <version>` section here, so add one before bumping `MARKETING_VERSION`.
 
+## 1.8.6
+- **The arrow keys work reliably in the Recordings list.** In 1.8.4 and 1.8.5 the up and down arrows, Space and Delete could stop responding after a click or after switching windows. They now work whenever the Recordings window is the active one.
+- **You can tell a transcript from a missing one at a glance.** **Transcribe** is now a small bordered button, while **Transcript**, for one that exists, stays plain text. **Try Again** is a bordered button too.
+- **Controls answer the pointer.** The play button darkens under the pointer, **Transcript** darkens when the pointer is on it, and the Finder and Trash icons get a soft grey square behind them, with Trash turning red.
+
 ## 1.8.5
 - **The recording you are listening to stands out.** Its play button turns solid blue with a Pause symbol while it plays, and a blue outline with a Play symbol while it is paused. The row you have chosen with the arrow keys is now a neutral grey, so blue means playback only.
 

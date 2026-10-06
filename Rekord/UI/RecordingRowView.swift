@@ -14,8 +14,6 @@ struct RecordingRowView: View {
     var onOpenTranscript: () -> Void = {}
     var onCopyTranscript: () -> Void = {}
     var onRename: (String) -> Void = { _ in }
-    /// The name field has closed, saved or not, so the window can take the keyboard back.
-    var onEndRename: () -> Void = {}
     /// The row the arrow keys are on.
     var isSelected = false
     let onReveal: () -> Void
@@ -32,6 +30,9 @@ struct RecordingRowView: View {
     }
 
     @State private var isHovered = false
+    /// The pointer is on the play button, or on the Transcript label, themselves rather than the row.
+    @State private var playHovered = false
+    @State private var transcriptHovered = false
     @State private var isRenaming = false
     @State private var draftName = ""
     @FocusState private var nameFieldFocused: Bool
@@ -76,15 +77,11 @@ struct RecordingRowView: View {
             transcriptControl
                 .frame(width: 124, alignment: .trailing)
             // File management stays out of the way until the row is pointed at.
-            HStack(spacing: 6) {
-                Button(action: onReveal) { Label("Reveal in Finder", systemImage: "folder") }
-                    .help("Reveal in Finder")
-                Button(action: onDelete) { Label("Move to Trash", systemImage: "trash") }
-                    .help("Move to Trash")
-                    .padding(.leading, 6)  // set apart from the everyday controls
+            HStack(spacing: 2) {
+                RowIconButton(title: "Reveal in Finder", systemImage: "folder", action: onReveal)
+                RowIconButton(title: "Move to Trash", systemImage: "trash", hoverTint: .red, action: onDelete)
+                    .padding(.leading, 4)  // set apart from the everyday controls
             }
-            .labelStyle(.iconOnly)
-            .buttonStyle(.borderless)
             .showOnly(when: isActive)
         }
         .padding(.vertical, 5)
@@ -153,7 +150,6 @@ struct RecordingRowView: View {
         guard isRenaming else { return }
         isRenaming = false
         if save, draftName.trimmingCharacters(in: .whitespacesAndNewlines) != (recording.name ?? "") { onRename(draftName) }
-        onEndRename()
     }
 
     private var playButton: some View {
@@ -166,11 +162,13 @@ struct RecordingRowView: View {
                 .foregroundStyle(playback == .playing ? Color.white : playback == .paused ? Color.accentColor : unavailable != nil ? Color.primary.opacity(0.3) : Color.primary)
                 .frame(width: 26, height: 26)
                 .background(playback == .playing ? Color.accentColor
-                            : playback == .paused ? Color.accentColor.opacity(0.15) : Color.primary.opacity(0.08), in: Circle())
+                            : playback == .paused ? Color.accentColor.opacity(0.15)
+                            : Color.primary.opacity(playHovered && unavailable == nil ? 0.16 : 0.08), in: Circle())
                 .overlay(Circle().strokeBorder(Color.accentColor, lineWidth: playback == .paused ? 1 : 0))
                 .contentShape(Circle())
         }
         .buttonStyle(.borderless)
+        .onHover { playHovered = $0 }
         .disabled(unavailable != nil)
         .help(unavailable ?? (playback == .playing ? "Pause" : "Play"))
         .padding(.top, 3)
@@ -178,46 +176,81 @@ struct RecordingRowView: View {
 
     @ViewBuilder
     private var transcriptControl: some View {
-        // Every state shows at rest, so the list can be scanned for what has a transcript;
-        // pointing at a row only makes its action stand out.
+        // Every state shows at rest, so the list can be scanned for what has a transcript. A transcript
+        // that exists is quiet text; one still to be made is a bordered button, so the two differ by
+        // shape and not only by wording.
         switch transcript {
         case .notStarted?:
-            Button(action: onTranscribe) { quiet(Label("Transcribe", systemImage: "text.badge.plus")) }
-                .buttonStyle(.plain)
+            Button(action: onTranscribe) { Label("Transcribe", systemImage: "waveform") }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
                 .help("Make a transcript of this recording")
+                .accessibilityLabel("Transcribe recording")
         case .queued?:
             Label("Waiting…", systemImage: "clock")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .help("Waiting for another transcript to finish")
+                .accessibilityLabel("Waiting to transcribe")
         case .inProgress?:
             HStack(spacing: 5) {
                 ProgressView().controlSize(.small)
                 Text("Transcribing…").font(.subheadline).foregroundStyle(.secondary)
             }
             .accessibilityElement(children: .combine)
+            .accessibilityLabel("Transcription in progress")
         case .ready?:
-            Button(action: onOpenTranscript) { quiet(Label("Transcript", systemImage: "doc.text")) }
+            // Quiet text that darkens when the pointer is on it, not just anywhere on the row. Plain,
+            // not borderless: a borderless button dims its label further, until it is hard to read.
+            Button(action: onOpenTranscript) {
+                Label("Transcript", systemImage: "doc.text")
+                    .font(.subheadline)
+                    .foregroundStyle(transcriptHovered ? Color.primary : Color.secondary)
+                    .contentShape(Rectangle())
+            }
                 .buttonStyle(.plain)
+                .onHover { transcriptHovered = $0 }
                 .help("Open Transcript")
                 .accessibilityLabel("Open Transcript")
         case .failed(let reason)?:
             // A failure stays visible: it is a status, not just an action.
             Button(action: onTranscribe) { Label("Try Again", systemImage: "exclamationmark.triangle") }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
                 .help(reason)
+                .accessibilityLabel("Transcription failed. Try again.")
         case nil:
             EmptyView()
         }
     }
 
-    private func quiet(_ label: some View) -> some View {
-        // In a plain button: a borderless one dims this further, until it is hard to read.
-        label.font(.subheadline).foregroundStyle(isActive ? .primary : .secondary).contentShape(Rectangle())
-    }
-
     private var duration: String {
         let seconds = Int(recording.duration)
         return String(format: "%d:%02d", seconds / 60, seconds % 60)
+    }
+}
+
+/// An icon button that answers the pointer: a soft grey square appears behind it and the icon
+/// darkens, or goes red for the one that destroys something. Nothing moves or grows.
+private struct RowIconButton: View {
+    let title: String
+    let systemImage: String
+    var hoverTint: Color = .primary
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .foregroundStyle(hovering ? hoverTint : Color.secondary)
+                .frame(width: 26, height: 24)
+                .background(RoundedRectangle(cornerRadius: 5).fill(hovering ? Color.primary.opacity(0.12) : .clear))
+                .contentShape(RoundedRectangle(cornerRadius: 5))
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help(title)
+        .accessibilityLabel(title)
     }
 }
 
