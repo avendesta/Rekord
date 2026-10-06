@@ -74,15 +74,11 @@ struct RecordingRowView: View {
             transcriptControl
                 .frame(width: 124, alignment: .trailing)
             // File management stays out of the way until the row is pointed at.
-            HStack(spacing: 6) {
-                Button(action: onReveal) { Label("Reveal in Finder", systemImage: "folder") }
-                    .help("Reveal in Finder")
-                Button(action: onDelete) { Label("Move to Trash", systemImage: "trash") }
-                    .help("Move to Trash")
-                    .padding(.leading, 6)  // set apart from the everyday controls
+            HStack(spacing: 2) {
+                RowIconButton(title: "Reveal in Finder", systemImage: "folder", action: onReveal)
+                RowIconButton(title: "Move to Trash", systemImage: "trash", hoverTint: .red, action: onDelete)
+                    .padding(.leading, 4)  // set apart from the everyday controls
             }
-            .labelStyle(.iconOnly)
-            .buttonStyle(.borderless)
             .showOnly(when: isActive)
         }
         .padding(.vertical, 5)
@@ -223,6 +219,30 @@ struct RecordingRowView: View {
     private var duration: String {
         let seconds = Int(recording.duration)
         return String(format: "%d:%02d", seconds / 60, seconds % 60)
+    }
+}
+
+/// An icon button that answers the pointer: a soft grey square appears behind it and the icon
+/// darkens, or goes red for the one that destroys something. Nothing moves or grows.
+private struct RowIconButton: View {
+    let title: String
+    let systemImage: String
+    var hoverTint: Color = .primary
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .foregroundStyle(hovering ? hoverTint : Color.secondary)
+                .frame(width: 26, height: 24)
+                .background(RoundedRectangle(cornerRadius: 5).fill(hovering ? Color.primary.opacity(0.12) : .clear))
+                .contentShape(RoundedRectangle(cornerRadius: 5))
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help(title)
+        .accessibilityLabel(title)
     }
 }
 
