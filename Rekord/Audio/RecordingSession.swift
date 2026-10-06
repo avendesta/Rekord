@@ -32,11 +32,25 @@ final class RecordingSession: ObservableObject {
         /// The one app the system track was recorded from; nil when it holds everything the Mac played.
         var sourceApp: String? = nil
 
-        /// The recording's `session.json`.
+        /// The recording's `session.json`. A file whose numbers are out of range counts as unreadable,
+        /// so the folder is skipped: they would otherwise crash the app where they are turned into
+        /// whole numbers (the list's length, the mixdown's padding).
         static func read(from folder: URL) throws -> Metadata {
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
-            return try decoder.decode(Metadata.self, from: Data(contentsOf: folder.appendingPathComponent("session.json")))
+            let metadata = try decoder.decode(Metadata.self, from: Data(contentsOf: folder.appendingPathComponent("session.json")))
+            guard metadata.isWithinLimits else {
+                throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "session.json has a value out of range"))
+            }
+            return metadata
+        }
+
+        // A day is far more than any recording or offset between its tracks; the rates are real audio rates.
+        private var isWithinLimits: Bool {
+            (0...86_400).contains(durationSeconds)
+                && (1...1_000_000).contains(systemSampleRate)
+                && micSampleRate.map { (1...1_000_000).contains($0) } ?? true
+                && micOffsetSeconds.map { abs($0) <= 86_400 } ?? true
         }
 
         func write(to folder: URL) throws {
