@@ -41,7 +41,7 @@ final class TranscriptNamerTests: XCTestCase {
             defaults.set(savedBookmark, forKey: AppSettings.outputFolderBookmarkKey)
             try? FileManager.default.removeItem(at: root)
         }
-        var metadata = RecordingSession.Metadata(
+        let metadata = RecordingSession.Metadata(
             startDate: Date(), durationSeconds: 5, includeMicrophone: false, files: [], systemSampleRate: 48_000,
             micSampleRate: nil, micOffsetSeconds: nil)
         try metadata.write(to: folder)
@@ -55,14 +55,16 @@ final class TranscriptNamerTests: XCTestCase {
         store.applyGeneratedName("Another title", in: folder)  // its own earlier name may be replaced
         XCTAssertEqual(try RecordingSession.Metadata.read(from: folder).name, "Another title")
 
-        metadata = try RecordingSession.Metadata.read(from: folder)
-        metadata.name = "My own name"
-        metadata.nameIsGenerated = nil  // what typing a name does
-        try metadata.write(to: folder)
+        // Renaming through the store, as the Recordings window does, makes the name the user's own.
+        store.rename(try XCTUnwrap(store.recordings.first), to: "My own name")
         store.applyGeneratedName("Generated again", in: folder)
         read = try RecordingSession.Metadata.read(from: folder)
         XCTAssertEqual(read.name, "My own name")
         XCTAssertNil(read.nameIsGenerated)
+
+        // Confirming a generated name unchanged goes through the same call, so it is kept too.
+        store.applyGeneratedName("Ignored", in: folder)
+        XCTAssertEqual(try RecordingSession.Metadata.read(from: folder).name, "My own name")
     }
 
     func testNamingIsOffUntilChosen() {
