@@ -2,6 +2,9 @@
 
 Each release's notes come from its `## <version>` section here, so add one before bumping `MARKETING_VERSION`.
 
+## 1.8.3
+- **Help is one click away.** Settings > General now has links to the guide, to report a problem, and to the privacy policy, next to the version.
+
 ## 1.8.2
 - **Fixed a freeze on "Starting recording…".** After choosing a microphone by name in the menu or in Settings, Rekord could hang when a recording started, if that microphone was already your Mac's default input. If you were hit by this, a recording cut short by the freeze is listed the next time Rekord opens.
 - **The version is shown in Settings > General.**
