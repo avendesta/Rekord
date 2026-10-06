@@ -18,6 +18,7 @@ struct SettingsView: View {
     @AppStorage(AppSettings.transcriptionLanguageKey) private var transcriptionLanguage = ""
     @AppStorage(AppSettings.transcriptTimestampsKey) private var transcriptTimestamps = true
     @AppStorage(AppSettings.transcriptIncludesMicrophoneKey) private var transcriptIncludesMicrophone = true
+    @AppStorage(AppSettings.autoNameKey) private var autoNameRecordings = true
     @State private var transcriptionLocales: [Locale] = []
     @State private var inputDevices: [AudioInputDevices.Device] = []
     @State private var capturingShortcut = false
@@ -232,6 +233,16 @@ struct SettingsView: View {
                         Text("Include microphone in transcripts")
                         Text("Turn off if your microphone picks up the meeting audio and lines appear twice.")
                     }
+                }
+                Section {
+                    // Shown off, not on, where the model isn't there, since nothing will be named.
+                    Toggle(isOn: TranscriptNamer.isSupported ? $autoNameRecordings : .constant(false)) {
+                        Text("Name recordings from their transcript")
+                        Text(TranscriptNamer.isSupported
+                             ? "Gives a recording without a name a short title, made on this Mac with Apple Intelligence. A name you type is never replaced."
+                             : "Needs Apple Intelligence, which is off or not available on this Mac.")
+                    }
+                    .disabled(!TranscriptNamer.isSupported)
                 }
                 Section {
                     Text("Transcription is performed entirely on this Mac. Audio is never uploaded.\nTranscripts are saved alongside the recording.")

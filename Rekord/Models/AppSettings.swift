@@ -35,11 +35,32 @@ enum AppSettings {
     static let systemAudioSeenKey = "systemAudioSeen"
     static let transcriptionLanguageKey = "transcriptionLanguage"
     static let transcriptTimestampsKey = "transcriptTimestamps"
+    static let autoNameKey = "autoNameRecordings"
     static let transcriptIncludesMicrophoneKey = "transcriptIncludesMicrophone"
 
-    static let defaultOutputFolder = FileManager.default
-        .homeDirectoryForCurrentUser
-        .appendingPathComponent("Documents/Rekord", isDirectory: true)
+    /// Where recordings went until 1.8.7. macOS asks permission before an app may read Documents, so a
+    /// new Mac gets `defaultOutputFolder` below instead; one that has recorded keeps using this.
+    static var legacyOutputFolder: URL {
+        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Documents/Rekord", isDirectory: true)
+    }
+
+    static var musicOutputFolder: URL {
+        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Music/Rekord", isDirectory: true)
+    }
+
+    static let defaultFolderKey = "defaultOutputFolderPath"
+
+    /// Music/Rekord, which needs no permission prompt, unless this Mac has already recorded (the
+    /// "last recording received audio" flag exists), in which case its recordings are in Documents/Rekord
+    /// and an empty list would be a surprise. Decided once and kept: recording sets that flag, which
+    /// must not move the default afterwards.
+    static var defaultOutputFolder: URL {
+        let defaults = UserDefaults.standard
+        if let path = defaults.string(forKey: defaultFolderKey) { return URL(fileURLWithPath: path, isDirectory: true) }
+        let folder = defaults.object(forKey: systemAudioSeenKey) != nil ? legacyOutputFolder : musicOutputFolder
+        defaults.set(folder.path, forKey: defaultFolderKey)
+        return folder
+    }
 
     /// Where recordings go. A folder chosen in Settings is remembered as a security-scoped bookmark,
     /// which is what lets the sandboxed Mac App Store build keep writing outside its container; the
@@ -99,6 +120,12 @@ enum AppSettings {
     /// Days after which a transcribed recording's audio is moved to the Trash; 0 keeps it for ever.
     static var audioRetentionDays: Int {
         UserDefaults.standard.object(forKey: audioRetentionDaysKey) as? Int ?? 7
+    }
+
+    /// On unless turned off: a recording without a name is given one from its transcript. Where the
+    /// model isn't available nothing happens, whatever this says.
+    static var autoNameRecordings: Bool {
+        UserDefaults.standard.object(forKey: autoNameKey) as? Bool ?? true
     }
 
     static var transcribeRecordings: Bool {
