@@ -13,6 +13,7 @@ struct RekordApp: App {
         store.follow(session)
         _store = StateObject(wrappedValue: store)
         _hotkeyPopup = StateObject(wrappedValue: HotkeyPopupController(session: session))
+        Diagnostics.startWatchdog()
         #if DEBUG
         print("[Rekord] MenuBarExtra loaded")
         #endif

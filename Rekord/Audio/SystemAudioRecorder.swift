@@ -65,6 +65,7 @@ final class SystemAudioRecorder {
         sawAudioLock.withLock { $0 = false }
         writeErrorLock.withLock { $0 = nil }
 
+        Diagnostics.step("system: creating tap (one app: \(sourceBundleID != nil))")
         // 1. Create a tap on one app's processes, or on the whole system output.
         let tapDescription: CATapDescription
         if let sourceBundleID {
@@ -83,6 +84,7 @@ final class SystemAudioRecorder {
         tapID = newTapID
 
         do {
+            Diagnostics.step("system: creating aggregate device")
             // 2. Pair the tap with the real default output device in a private
             // aggregate device — a tap alone has no clock to run against.
             let outputDeviceID: AudioObjectID = try readProperty(
@@ -116,6 +118,7 @@ final class SystemAudioRecorder {
             guard status == noErr else { throw RecorderError.aggregateDeviceCreationFailed(status) }
             aggregateDeviceID = newAggregateID
 
+            Diagnostics.step("system: opening file")
             // 3. Read the tap's stream format and open the output file.
             var asbd: AudioStreamBasicDescription = try readProperty(
                 on: tapID,
@@ -142,6 +145,7 @@ final class SystemAudioRecorder {
             bufferCount = 0
             #endif
 
+            Diagnostics.step("system: installing IOProc")
             // 4. Install the IOProc on the aggregate device and start it.
             var newIOProcID: AudioDeviceIOProcID?
             status = AudioDeviceCreateIOProcIDWithBlock(&newIOProcID, aggregateDeviceID, ioQueue) { [weak self] _, inInputData, inInputTime, _, _ in
@@ -169,6 +173,7 @@ final class SystemAudioRecorder {
             }
             ioProcID = procID
 
+            Diagnostics.step("system: starting device")
             status = AudioDeviceStart(aggregateDeviceID, procID)
             guard status == noErr else { throw RecorderError.ioProcStartFailed(status) }
         } catch {
@@ -176,6 +181,7 @@ final class SystemAudioRecorder {
             throw error
         }
 
+        Diagnostics.step("system: started")
         if let sourceBundleID {
             source = (sourceBundleID, tapDescription)
             var address = Self.processListAddress
@@ -233,6 +239,7 @@ final class SystemAudioRecorder {
     }
 
     private func teardown() {
+        Diagnostics.step("system: teardown")
         if source != nil {
             var address = Self.processListAddress
             AudioObjectRemovePropertyListener(.system, &address, Self.processListChanged, Unmanaged.passUnretained(self).toOpaque())

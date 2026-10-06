@@ -39,17 +39,25 @@ final class MicRecorder {
         guard !isRecording else { throw RecorderError.alreadyRecording }
 
         // Fresh engine per recording so a changed input device is never served from a stale format.
+        Diagnostics.step("mic: creating engine")
         engine = AVAudioEngine()
         let inputNode = engine.inputNode
+        Diagnostics.step("mic: choosing device (chosen: \(AppSettings.inputDeviceUID != nil))")
         // Point only this engine at the chosen mic; the system default input is untouched.
         // A device that has been unplugged falls back to the default.
         if let uid = AppSettings.inputDeviceUID,
            let deviceID = AudioInputDevices.deviceID(forUID: uid),
-           let unit = inputNode.audioUnit {
+           let unit = inputNode.audioUnit,
+           // Left alone when the engine is on that device already, as it is when the chosen one is
+           // the system default: setting it again made the engine hang in start() now and then.
+           Self.currentDevice(of: unit) != deviceID {
             var device = deviceID
-            AudioUnitSetProperty(unit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0,
-                                 &device, UInt32(MemoryLayout<AudioObjectID>.size))
+            Diagnostics.step("mic: setting device \(deviceID)")
+            let status = AudioUnitSetProperty(unit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0,
+                                              &device, UInt32(MemoryLayout<AudioObjectID>.size))
+            Diagnostics.step("mic: device set (status \(status))")
         }
+        Diagnostics.step("mic: reading format")
         let format = inputNode.inputFormat(forBus: 0)
         // A Mac with no input device reports an empty format, and tapping that raises an exception.
         guard format.sampleRate > 0, format.channelCount > 0 else { throw RecorderError.noInputDevice }
@@ -57,6 +65,7 @@ final class MicRecorder {
         firstBufferHostTime = nil
         writeErrorLock.withLock { $0 = nil }
 
+        Diagnostics.step("mic: opening file (\(format.sampleRate) Hz, \(format.channelCount) ch)")
         do {
             audioFile = try AVAudioFile(forWriting: fileURL, settings: format.settings)
         } catch {
@@ -67,6 +76,7 @@ final class MicRecorder {
         bufferCount = 0
         #endif
 
+        Diagnostics.step("mic: installing tap")
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, when in
             guard let self else { return }
             if self.firstBufferHostTime == nil { self.firstBufferHostTime = when.hostTime }
@@ -88,7 +98,9 @@ final class MicRecorder {
             }
         }
 
+        Diagnostics.step("mic: preparing engine")
         engine.prepare()
+        Diagnostics.step("mic: starting engine")
         do {
             try engine.start()
         } catch {
@@ -98,10 +110,19 @@ final class MicRecorder {
             throw error
         }
         isRecording = true
+        Diagnostics.step("mic: started")
+    }
+
+    private static func currentDevice(of unit: AudioUnit) -> AudioObjectID? {
+        var device = AudioObjectID(kAudioObjectUnknown)
+        var size = UInt32(MemoryLayout<AudioObjectID>.size)
+        let status = AudioUnitGetProperty(unit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0, &device, &size)
+        return status == noErr ? device : nil
     }
 
     func stop() {
         guard isRecording else { return }
+        Diagnostics.step("mic: stopping")
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
         writeQueue.sync {
