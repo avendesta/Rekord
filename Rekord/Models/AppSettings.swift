@@ -35,6 +35,7 @@ enum AppSettings {
     static let systemAudioSeenKey = "systemAudioSeen"
     static let transcriptionLanguageKey = "transcriptionLanguage"
     static let transcriptTimestampsKey = "transcriptTimestamps"
+    static let autoNameKey = "autoNameRecordings"
     static let transcriptIncludesMicrophoneKey = "transcriptIncludesMicrophone"
 
     static let defaultOutputFolder = FileManager.default
@@ -99,6 +100,11 @@ enum AppSettings {
     /// Days after which a transcribed recording's audio is moved to the Trash; 0 keeps it for ever.
     static var audioRetentionDays: Int {
         UserDefaults.standard.object(forKey: audioRetentionDaysKey) as? Int ?? 7
+    }
+
+    /// Off unless chosen: a recording without a name is given one from its transcript.
+    static var autoNameRecordings: Bool {
+        UserDefaults.standard.object(forKey: autoNameKey) as? Bool ?? false
     }
 
     static var transcribeRecordings: Bool {

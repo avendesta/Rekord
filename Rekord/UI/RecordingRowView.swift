@@ -14,6 +14,8 @@ struct RecordingRowView: View {
     var onOpenTranscript: () -> Void = {}
     var onCopyTranscript: () -> Void = {}
     var onRename: (String) -> Void = { _ in }
+    /// Nil where a name can't be made from the transcript, which hides the menu item.
+    var onSuggestName: (() -> Void)?
     /// The row the arrow keys are on.
     var isSelected = false
     let onReveal: () -> Void
@@ -104,6 +106,7 @@ struct RecordingRowView: View {
             default: EmptyView()
             }
             Button("Rename…", action: beginRenaming)
+            if let onSuggestName { Button("Suggest a Name", action: onSuggestName) }
             Button("Reveal in Finder", action: onReveal)
             Divider()
             Button("Move to Trash", role: .destructive, action: onDelete)

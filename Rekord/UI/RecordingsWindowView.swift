@@ -188,12 +188,14 @@ struct RecordingsWindowView: View {
             player: player,
             onTogglePlay: { togglePlay(recording) },
             activity: store.combining.contains(recording.id) ? "Preparing…"
+                : store.naming.contains(recording.id) ? "Naming…"
                 : store.compressing == recording.id ? "Converting…" : nil,
             transcript: transcriptState(of: recording),
             onTranscribe: { store.transcribe(recording) },
             onOpenTranscript: { store.openTranscript(recording) },
             onCopyTranscript: { store.copyTranscript(recording) },
             onRename: { store.rename(recording, to: $0) },
+            onSuggestName: store.canSuggestName(for: recording) ? { store.suggestName(for: recording) } : nil,
             isSelected: selection == recording.id,
             onReveal: { store.reveal(recording) },
             onDelete: { trash(recording) }

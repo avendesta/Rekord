@@ -13,6 +13,8 @@ final class RecordingStore: ObservableObject {
     @Published private(set) var transcriptQueue: [URL] = []
     /// Why a recording's last transcription failed, shown on its row until it is retried.
     @Published private(set) var transcriptErrors: [URL: String] = [:]
+    /// Recordings whose name is being made from their transcript.
+    @Published private(set) var naming: Set<URL> = []
     /// Recordings whose mixdown failed; not retried until the next launch.
     private var failed: Set<URL> = []
     private var isTranscribing = false
@@ -186,6 +188,9 @@ final class RecordingStore: ObservableObject {
                 self.transcriptQueue.removeAll { $0 == id }
                 self.transcriptErrors[id] = failure
                 self.reload()
+                if failure == nil, AppSettings.autoNameRecordings, let recording = self.recordings.first(where: { $0.id == id }) {
+                    self.suggestName(for: recording)
+                }
                 self.transcribeNext()
             }
         }
@@ -197,11 +202,48 @@ final class RecordingStore: ObservableObject {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard var metadata = try? RecordingSession.Metadata.read(from: recording.folder) else { return }
         metadata.name = trimmed.isEmpty ? nil : trimmed
+        metadata.nameIsGenerated = nil  // typed by the user, so never replaced
         do {
             try metadata.write(to: recording.folder)
         } catch {
             NSSound.beep()
         }
+        reload()
+    }
+
+    /// Whether a name can be made from the transcript: there is one, and the recording has no name,
+    /// or has one that was itself made that way. A name the user typed is left alone.
+    func canSuggestName(for recording: Recording) -> Bool {
+        TranscriptNamer.isSupported && recording.hasTranscript && (recording.name == nil || recording.metadata.nameIsGenerated == true)
+    }
+
+    /// Names a recording from its transcript, on this Mac. Does nothing where the model isn't available.
+    func suggestName(for recording: Recording) {
+        guard canSuggestName(for: recording), !naming.contains(recording.id), let url = recording.transcriptFile else { return }
+        naming.insert(recording.id)
+        let id = recording.id, folder = recording.folder
+        Task.detached {
+            var name: String?
+            do {
+                if let text = try? String(contentsOf: url, encoding: .utf8) { name = try await TranscriptNamer.name(for: text) }
+            } catch {
+                // The step name only: what the transcript says never goes in the log.
+                Diagnostics.log.notice("naming failed: \(String(describing: type(of: error)), privacy: .public)")
+            }
+            await MainActor.run { [name] in
+                self.naming.remove(id)
+                if let name { self.applyGeneratedName(name, in: folder) }
+            }
+        }
+    }
+
+    /// Writes a generated name, unless the user has named the recording since.
+    func applyGeneratedName(_ name: String, in folder: URL) {
+        guard var metadata = try? RecordingSession.Metadata.read(from: folder),
+              metadata.name == nil || metadata.nameIsGenerated == true else { return }
+        metadata.name = name
+        metadata.nameIsGenerated = true
+        try? metadata.write(to: folder)
         reload()
     }
 

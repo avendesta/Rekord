@@ -8,6 +8,7 @@ Rekord records audio on your Mac. It does not collect, upload or share any of it
 
 - **Recordings stay on your Mac.** System audio and microphone audio are saved as files in the folder you choose. Rekord never sends them anywhere.
 - **Transcripts are made on your Mac.** On macOS 26 or later, Rekord turns recordings into text using Apple's on-device speech recognition. The audio and the text stay on your Mac. The first time a language is used, macOS may download that language's speech model from Apple; nothing about your recordings is sent.
+- **Names from transcripts are made on your Mac too.** If you turn on **Name recordings from their transcript**, or choose **Suggest a Name**, Rekord asks Apple's on-device language model for a short title. The text is not sent anywhere.
 - **No accounts, analytics or tracking.** Rekord itself makes no network connections, contains no analytics or advertising code, and does not track you.
 - **No data is collected by the developer.** Nothing about you or your recordings reaches the developer or any third party.
 - **Settings** (for example your shortcut, chosen folder and microphone) are stored locally on your Mac in the app's preferences.
