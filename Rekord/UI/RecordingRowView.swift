@@ -113,10 +113,11 @@ struct RecordingRowView: View {
         }
     }
 
-    /// The selected row is marked; so is the one being listened to, so its scrubber reads as part of it.
+    /// Blue is for the recording being listened to, so its scrubber reads as part of it; the row the
+    /// keyboard is on and the row under the pointer are neutral grey.
     private var background: Color {
-        if isSelected { return Color.accentColor.opacity(0.18) }
         if playback == .playing || playback == .paused { return Color.accentColor.opacity(0.08) }
+        if isSelected { return Color.primary.opacity(0.1) }
         return isHovered ? Color.primary.opacity(0.05) : .clear
     }
 
@@ -161,8 +162,12 @@ struct RecordingRowView: View {
             Label(playback == .playing ? "Pause" : "Play", systemImage: playback == .playing ? "pause.fill" : "play.fill")
                 .labelStyle(.iconOnly)
                 .font(.system(size: 11))
+                // Grey when idle, solid blue with Pause while playing, outlined blue with Play while paused.
+                .foregroundStyle(playback == .playing ? Color.white : playback == .paused ? Color.accentColor : unavailable != nil ? Color.primary.opacity(0.3) : Color.primary)
                 .frame(width: 26, height: 26)
-                .background(Color.primary.opacity(0.08), in: Circle())
+                .background(playback == .playing ? Color.accentColor
+                            : playback == .paused ? Color.accentColor.opacity(0.15) : Color.primary.opacity(0.08), in: Circle())
+                .overlay(Circle().strokeBorder(Color.accentColor, lineWidth: playback == .paused ? 1 : 0))
                 .contentShape(Circle())
         }
         .buttonStyle(.borderless)
