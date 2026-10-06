@@ -105,7 +105,7 @@ Each paragraph is one stretch of a speaker. If you use speakers, your microphone
 
 Everyone on the other end of a call is "Others"; Rekord doesn't tell them apart. Pick the language, leave out the timestamps, or turn the automatic part off, in **Settings > Transcription**.
 
-**Find your recordings** under **Recent Recordings** in the menu, grouped by day. Double-click a recording's time to give it a name; the name is a label in Rekord only, and the files on disk keep their names. From there you can play a recording, open its transcript, reveal it in Finder or move it to the Trash. The list works from the keyboard: the up and down arrows choose a recording, Space plays or pauses it, and Delete moves it to the Trash. Deleted recordings go to the Trash, with an **Undo** for a few seconds. When a recording includes the microphone, Rekord also mixes both tracks into one file for you, a moment after you stop.
+**Find your recordings** under **Recent Recordings** in the menu, grouped by day. Double-click a recording's time to give it a name, or right-click and choose **Suggest a Name** to have one made from its transcript on your Mac; the name is a label in Rekord only, and the files on disk keep their names. From there you can play a recording, open its transcript, reveal it in Finder or move it to the Trash. The list works from the keyboard: the up and down arrows choose a recording, Space plays or pauses it, and Delete moves it to the Trash. Deleted recordings go to the Trash, with an **Undo** for a few seconds. When a recording includes the microphone, Rekord also mixes both tracks into one file for you, a moment after you stop.
 
 Each recording is a folder in `~/Documents/Rekord/` (or the folder you chose in Settings), named by start time:
 
@@ -129,7 +129,7 @@ Open **Settings…** from the menu. It has four tabs:
 
 - **General:** launch at login (the shortcut only works while Rekord is running), the shortcut (any combination that includes ⌘, ⌥ or ⌃) and the save location.
 - **Audio:** which microphone Rekord uses, without changing your Mac's system input, whether the microphone is on by default, and the format recordings are kept in (M4A or lossless CAF), with a button to convert older recordings, and how long audio is kept before it is removed.
-- **Transcription:** automatic transcripts, language, timestamps and whether the microphone is included (macOS 26 or later). Leave the microphone out if it picks up the meeting from your speakers and lines appear twice.
+- **Transcription:** automatic transcripts, language, timestamps and whether the microphone is included (macOS 26 or later), and whether recordings without a name get one made from their transcript (off by default; needs Apple Intelligence). Leave the microphone out if it picks up the meeting from your speakers and lines appear twice.
 - **Privacy:** the state of the Microphone and System Audio permissions, with links to their System Settings pages. macOS doesn't report the System Audio permission, so Rekord shows whether your last recording received system audio.
 
 ### Tips and troubleshooting

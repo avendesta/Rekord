@@ -31,6 +31,9 @@ final class RecordingSession: ObservableObject {
         var name: String? = nil
         /// The one app the system track was recorded from; nil when it holds everything the Mac played.
         var sourceApp: String? = nil
+        /// True when `name` was made from the transcript. Rekord may replace such a name; one the user
+        /// typed is never replaced.
+        var nameIsGenerated: Bool? = nil
 
         /// The recording's `session.json`. A file whose numbers are out of range counts as unreadable,
         /// so the folder is skipped: they would otherwise crash the app where they are turned into
