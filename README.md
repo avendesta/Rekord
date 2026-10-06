@@ -129,7 +129,7 @@ Open **Settings…** from the menu. It has four tabs:
 
 - **General:** launch at login (the shortcut only works while Rekord is running), the shortcut (any combination that includes ⌘, ⌥ or ⌃) and the save location.
 - **Audio:** which microphone Rekord uses, without changing your Mac's system input, whether the microphone is on by default, and the format recordings are kept in (M4A or lossless CAF), with a button to convert older recordings, and how long audio is kept before it is removed.
-- **Transcription:** automatic transcripts, language, timestamps and whether the microphone is included (macOS 26 or later), and whether recordings without a name get one made from their transcript (off by default; needs Apple Intelligence). Leave the microphone out if it picks up the meeting from your speakers and lines appear twice.
+- **Transcription:** automatic transcripts, language, timestamps and whether the microphone is included (macOS 26 or later), and whether recordings without a name get one made from their transcript (on by default; needs Apple Intelligence). Leave the microphone out if it picks up the meeting from your speakers and lines appear twice.
 - **Privacy:** the state of the Microphone and System Audio permissions, with links to their System Settings pages. macOS doesn't report the System Audio permission, so Rekord shows whether your last recording received system audio.
 
 ### Tips and troubleshooting
