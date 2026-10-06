@@ -163,7 +163,7 @@ git commit -am "Update Rekord to <version>" && git push
 
 ## Mac App Store
 
-The App Store build is the same app with the **App Sandbox** turned on (`Rekord/Resources/RekordAppStore.entitlements`). Everything works inside the sandbox; the one difference is the output folder. A sandboxed app can only write to its own container unless the user picks a folder, so Settings remembers the chosen folder with a security-scoped bookmark. The direct-download build stays unsandboxed and keeps its default of `~/Documents/Rekord`. The direct build and the App Store build both use the bundle ID `com.avendesta.rekord`.
+The App Store build is the same app with the **App Sandbox** turned on (`Rekord/Resources/RekordAppStore.entitlements`). Everything works inside the sandbox; the one difference is the output folder. A sandboxed app can only write to its own container unless the user picks a folder, so Settings remembers the chosen folder with a security-scoped bookmark. The direct-download build stays unsandboxed and defaults to `~/Music/Rekord` (a Mac that recorded with 1.8.6 or earlier keeps `~/Documents/Rekord`). The direct build and the App Store build both use the bundle ID `com.avendesta.rekord`.
 
 ### One-time setup (in Apple's portals)
 
