@@ -2,6 +2,11 @@
 
 Each release's notes come from its `## <version>` section here, so add one before bumping `MARKETING_VERSION`.
 
+## 1.9.0
+- **Recordings are named for you.** On a Mac with Apple Intelligence (macOS 26), a recording with no name gets a short title made from its transcript, such as "Sprint Plan Discussion", on your Mac with Apple's on-device model. It never replaces a name you typed. It is on by default; turn it off under **Settings > Transcription**. Right-click a recording and choose **Suggest a Name** to make one by hand.
+- **No permission prompt on a new Mac.** Recordings now go to `~/Music/Rekord` by default, so macOS no longer asks to let Rekord use your Documents folder. If you have already recorded with Rekord, your recordings stay in `~/Documents/Rekord` and nothing moves.
+- **Rekord shows in the Dock and in Cmd+Tab while a window is open.** Open Recordings or Settings, go to another app, and Cmd+Tab brings the window back. When the last window closes, Rekord returns to the menu bar.
+
 ## 1.8.7
 - **The recording buttons respond to the pointer.** **Start Recording** and **Stop Recording** lighten a little when you point at them, and **Pause** darkens a little. Their size and shape don't change.
 
